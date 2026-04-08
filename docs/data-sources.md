@@ -144,6 +144,61 @@ KCB 자산/소득 데이터 (110+ 컬럼)
 
 ---
 
+## DB 간 JOIN 전략
+
+4개 DB는 각각 다른 지역 코드 체계를 사용합니다. 동네 마스터 테이블을 중심으로 JOIN해야 합니다.
+
+### 지역 코드 매핑
+
+| DB | 지역 키 | 단위 | 예시 |
+|----|---------|------|------|
+| 리치고 | `BJD_CODE` + `SD`/`SGG`/`EMD` | 법정동 | 서울특별시 / 마포구 / 연남동 |
+| SPH | `PROVINCE_CODE`/`CITY_CODE`/`DISTRICT_CODE` | 행정구 | M_SCCO_MST에 한글명+영문명+GEOGRAPHY |
+| 아정당 | `INSTALL_STATE`/`INSTALL_CITY` | 시/구 | 텍스트 지역명 |
+| 넥스트레이드 | `ISU_CD` (종목코드) | 종목 단위 (지역 무관) | — |
+
+### JOIN 허브: 동네 마스터 테이블 (신규 생성 필요)
+
+```sql
+CREATE TABLE DONGNE_MASTER AS
+SELECT DISTINCT
+    m.PROVINCE_CODE,
+    m.CITY_CODE, 
+    m.DISTRICT_CODE,
+    m.PROVINCE_KOR_NAME AS SD,        -- 리치고 SD와 매핑
+    m.CITY_KOR_NAME AS SGG,           -- 리치고 SGG와 매핑
+    m.DISTRICT_KOR_NAME AS EMD,       -- 리치고 EMD와 매핑
+    m.DISTRICT_GEOM                    -- 지리 공간 데이터
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.M_SCCO_MST m;
+```
+
+### JOIN 경로
+
+```
+리치고 ←(SD/SGG/EMD)→ DONGNE_MASTER ←(PROVINCE/CITY/DISTRICT_CODE)→ SPH
+                              ↑
+                    아정당 ←(INSTALL_STATE/CITY = SD/SGG)→
+```
+
+> **주의**: 리치고는 읍면동(EMD) 단위, SPH는 구(DISTRICT) 단위. 분석 시 구 단위로 통일하거나, 리치고를 SGG 기준으로 집계 필요.
+
+---
+
+## AI_SENTIMENT 데이터 대안
+
+Marketplace 4종에 **리뷰/뉴스 텍스트 데이터가 없음**. 아래 대안으로 해결:
+
+| 대안 | 방법 | 난이도 |
+|------|------|--------|
+| **A. AI_COMPLETE → AI_SENTIMENT** (권장) | AI_COMPLETE로 동네 프로필 텍스트 생성 → 해당 텍스트에 AI_SENTIMENT 적용 | 낮음 |
+| B. 소비 데이터 기반 감성 | CARD_SALES_INFO의 업종별 소비 비율을 텍스트로 변환 → AI_SENTIMENT | 중간 |
+| C. 공공 뉴스 크롤링 | 공공데이터포털 or 네이버 뉴스 API → CSV → Snowflake 업로드 | 높음 (시간 부족) |
+
+> **결정**: 대안 A 채택. Cortex AI 6개 기능 "모두 활용" 심사 기준 충족이 우선.
+
+---
+
 ## Cortex AI 활용 매핑
 
 | 기능 | 역할 | 적용 탭 |
@@ -213,14 +268,47 @@ Snowflake Cortex Code(CoCo)는 Snowsight 내장 AI 코딩 어시스턴트로, 10
 
 ---
 
-## MBTI 4축 ↔ 데이터 매핑
+## MBTI 4축 ↔ 데이터 매핑 (상세 피처)
 
-| MBTI 축 | 의미 | 핵심 데이터 | 테이블 |
-|---------|------|-------------|--------|
-| **E/I** (활동성) | 외향적 vs 내향적 동네 | 유동인구(방문/거주/근무 비율), 시간대별 활동량 | FLOATING_POPULATION_INFO |
-| **S/N** (실용vs문화) | 실용적 vs 문화적 동네 | 업종별 소비 비율 (식품/의료 vs 카페/문화/레저) | CARD_SALES_INFO |
-| **T/F** (경제vs생활) | 경제중심 vs 생활중심 동네 | 소득/자산/신용점수 vs 주거평수/가구 구성 | ASSET_INCOME_INFO |
-| **J/P** (안정vs변화) | 안정적 vs 변화하는 동네 | 인구 변동률, 신규설치/해지 패턴, 시세 변동성 | 인구데이터 + V01/V05 + 시세 |
+### E/I (활동성) — 외향적 vs 내향적 동네
+
+| 피처 | 컬럼 | 테이블 | E 방향 | I 방향 |
+|------|------|--------|--------|--------|
+| 방문인구 비율 | `VISITING_POPULATION` / `RESIDENTIAL_POPULATION` | FLOATING_POPULATION_INFO | 높음 | 낮음 |
+| 야간 활동 비율 | `TIME_SLOT` 필터링 (18시 이후 비중) | FLOATING_POPULATION_INFO | 높음 | 낮음 |
+| 주말 유동인구 | `WEEKDAY_WEEKEND = 'WEEKEND'` 비중 | FLOATING_POPULATION_INFO | 높음 | 낮음 |
+| 엔터테인먼트 소비 | `ENTERTAINMENT_SALES` + `SPORTS_CULTURE_LEISURE_SALES` | CARD_SALES_INFO | 높음 | 낮음 |
+
+### S/N (실용vs문화) — 실용적 vs 문화적 동네
+
+| 피처 | 컬럼 | 테이블 | S 방향 | N 방향 |
+|------|------|--------|--------|--------|
+| 생필품 소비 비중 | `FOOD_SALES` + `MEDICAL_SALES` + `GAS_STATION_SALES` | CARD_SALES_INFO | 높음 | 낮음 |
+| 문화/카페 소비 비중 | `COFFEE_SALES` + `SPORTS_CULTURE_LEISURE_SALES` + `TRAVEL_SALES` | CARD_SALES_INFO | 낮음 | 높음 |
+| 대형마트 vs 이커머스 | `LARGE_DISCOUNT_STORE_SALES` vs `E_COMMERCE_SALES` 비율 | CARD_SALES_INFO | 마트 우세 | 이커머스 우세 |
+| 교육 투자 | `EDUCATION_ACADEMY_SALES` 비중 | CARD_SALES_INFO | 높음 (실용) | — |
+
+### T/F (경제vs생활) — 경제중심 vs 생활중심 동네
+
+| 피처 | 컬럼 | 테이블 | T 방향 | F 방향 |
+|------|------|--------|--------|--------|
+| 평균 소득 수준 | `AVERAGE_INCOME` | ASSET_INCOME_INFO | 높음 | — |
+| 고소득 비율 | `RATE_INCOME_OVER_70M` | ASSET_INCOME_INFO | 높음 | 낮음 |
+| 신용 점수 | `AVERAGE_SCORE` | ASSET_INCOME_INFO | 높음 | — |
+| 주택 보유 | `OWN_HOUSING_COUNT` / `CUSTOMER_COUNT` | ASSET_INCOME_INFO | 높음 | 낮음 |
+| 영유아 비율 | `AGE_UNDER5_PER_FEMALE_20TO40` | POPULATION_AGE_UNDER5 | 낮음 | 높음 |
+| 매매가 대비 전세가 | `JEONSE / MEME` 비율 | RICHGO_MARKET_PRICE | 낮음 (투자) | 높음 (거주) |
+
+### J/P (안정vs변화) — 안정적 vs 변화하는 동네
+
+| 피처 | 컬럼 | 테이블 | J 방향 | P 방향 |
+|------|------|--------|--------|--------|
+| 시세 변동성 | `MEME_PRICE` 표준편차 (최근 12개월) | RICHGO_MARKET_PRICE | 낮음 | 높음 |
+| 인구 순유입 | 인구 증감률 (전월 대비) | POPULATION_GENDER_AGE | 안정 | 급변 |
+| 신규 설치 비율 | `CONTRACT_COUNT` 추이 | V01_MONTHLY_REGIONAL | 안정 | 급증 |
+| 20~30대 비율 | `AGE_20S` + `AGE_30S` / `TOTAL` | POPULATION_GENDER_AGE | 낮음 | 높음 |
+
+> **판정 기준**: 각 축별 피처를 z-score 정규화 후 가중평균. 양수면 첫 글자(E/S/T/J), 음수면 둘째 글자(I/N/F/P).
 
 ---
 
