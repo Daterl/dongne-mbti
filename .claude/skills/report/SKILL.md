@@ -32,13 +32,14 @@ description: "일일 개발 리포트를 GitHub Wiki에 기록하는 스킬. 티
 
 ### Step 2: Wiki 페이지 생성
 
-wiki-writer 에이전트를 서브 에이전트로 호출하여 Daily Log 페이지를 생성한다:
+wiki-writer 에이전트를 서브 에이전트로 호출하여 Daily Log 페이지를 생성한다.
+템플릿: `references/daily-log-template.md`를 Read한 뒤 적용.
 
 ```
 Agent(
   subagent_type: "wiki-writer",
   model: "opus",
-  prompt: "Daily Log 페이지를 작성하라. 날짜: {오늘}, 수집된 정보: {Step 1 결과}"
+  prompt: "Daily Log 페이지를 작성하라. 템플릿은 references/daily-log-template.md를 Read하여 따르라. 날짜: {오늘}, 수집된 정보: {Step 1 결과}"
 )
 ```
 

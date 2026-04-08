@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": ["bash .claude/hooks/sql-guard.sh"],
+        "description": "Snowflake 위험 명령 사전 차단 (DROP, TRUNCATE, Warehouse 방치)"
+      }
+    ]
+  }
+}

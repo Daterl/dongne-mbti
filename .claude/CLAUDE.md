@@ -1,110 +1,50 @@
 # dongne-mbti 프로젝트
 
-> Snowflake Hackathon 2026 Korea | 동네 MBTI — AI로 읽는 동네 성격과 이사 타이밍
-> 마감: 2026-04-12 (토) | 크레딧: $40 | 2인 팀
+> Snowflake Hackathon 2026 Korea | 마감 4/12 | 크레딧 $40 | 2인 팀
 
-## 프로젝트 개요
+서울 동네의 '성격'을 MBTI로 표현하는 Streamlit in Snowflake 앱.
 
-서울 동네의 '성격'을 MBTI로 표현하고, 자연어로 맞춤 동네를 찾고, 이사 타이밍을 판단하는 Streamlit in Snowflake 앱.
+## 하네스
 
----
+**에이전트 (전문가 풀 — 필요 시 개별 호출):**
 
-## 하네스: 동네 MBTI 개발
+| 에이전트 | 역할 | 호출 시점 |
+|---------|------|----------|
+| developer | SQL, Streamlit, YAML, Cortex AI 코드 | 코드 작성 시 |
+| data-analyst | EDA, 4축 피처 매핑, 통계 검증 | 데이터 분석 시 |
+| reviewer | SQL 검증, 크레딧 추정, 프롬프트 점검 | Snowflake 실행 전 |
+| wiki-writer | Wiki 기록 (로그, 체크포인트, 의사결정) | /report, /checkpoint 시 |
 
-**목표:** Snowflake Cortex AI 6개 기능을 활용한 동네 MBTI 앱을 $40 크레딧 내에서 개발하고, 모든 과정을 GitHub Wiki에 기록한다.
+**스킬:** `/report` (일일 Wiki 로그), `/checkpoint` (페이즈 Wiki 체크포인트)
 
-**에이전트 팀:**
+**규칙:** 단순 질문은 에이전트 없이 직접 응답. 모든 에이전트는 `model: "opus"`.
 
-| 에이전트 | 역할 |
-|---------|------|
-| developer | SQL, Streamlit, Semantic Model YAML, Cortex AI 파이프라인 개발 |
-| data-analyst | EDA, MBTI 4축 피처 매핑, 데이터 품질 분석, 통계 검증 |
-| reviewer | SQL 사전 검증, 크레딧 비용 추정, Cortex AI 프롬프트 점검 |
-| wiki-writer | GitHub Wiki 페이지 생성/갱신 (일일 로그, 체크포인트, 의사결정) |
+## 크레딧 세이프가드
 
-**스킬:**
+- Cortex AI 호출 전 `LIMIT 10` 테스트 필수. 전체 실행(구 25건 ~$1, 동 400건 ~$10)은 테스트 후에만. # Why: Warehouse 1시간 방치 = $2, 전체 동 배치 = $10. $40 예산의 25~50% 소진.
+- 결과는 테이블에 저장 → Streamlit에서 조회만 (배치 패턴). # Why: Cortex AI를 매 클릭마다 호출하면 데모 중 크레딧 고갈.
+- SQL 실행 전 reviewer 에이전트 검증 권장. # Why: SQL 오류로 의미 없는 크레딧 소비 방지. 특히 JOIN 조건 누락 시 카테시안 곱 발생.
+- Warehouse: `XSMALL`, `AUTO_SUSPEND=60`. 대형 사이즈 변경은 hooks가 차단. # Why: MEDIUM 이상은 시간당 $4~$16.
 
-| 스킬 | 용도 | 사용 에이전트 |
-|------|------|-------------|
-| /report | 일일 개발 리포트 → Wiki Daily Log | wiki-writer |
-| /checkpoint | 페이즈 완료 체크포인트 → Wiki | wiki-writer |
+## 코드 분담
 
-**실행 규칙:**
-- 에이전트는 전문가 풀 패턴으로 **필요 시 개별 호출**한다 (상시 팀 아님)
-- SQL/Streamlit/YAML 코드 작성 시 → `developer` 에이전트 호출
-- 데이터 탐색/분석/피처 매핑 시 → `data-analyst` 에이전트 호출
-- Snowflake 실행 전 SQL 검증 시 → `reviewer` 에이전트 호출
-- 티켓 완료/하루 마무리 시 → `/report` 스킬 (wiki-writer 호출)
-- 페이즈 완료 시 → `/checkpoint` 스킬 (wiki-writer 호출)
-- 단순 질문/확인은 에이전트 없이 직접 응답
-- 모든 에이전트는 `model: "opus"` 사용
+- **Claude Code (무료)**: SQL/Streamlit/YAML 작성, 문서화
+- **Snowflake (크레딧)**: 실행, 검증, 앱 배포, 데모 촬영
+- 구 단위(25개) MVP 먼저 → 여유 시 동 단위 확장. # Why: 구 단위 ~$1, 동 단위 ~$10+. MVP는 구 단위로 충분.
 
-**디렉토리 구조:**
+## Cortex AI 6개 기능 (심사 필수)
 
-```
-.claude/
-├── agents/
-│   ├── developer.md
-│   ├── data-analyst.md
-│   ├── reviewer.md
-│   └── wiki-writer.md
-├── skills/
-│   ├── report/
-│   │   └── SKILL.md
-│   └── checkpoint/
-│       └── SKILL.md
-└── CLAUDE.md
-```
+AI_CLASSIFY, AI_SENTIMENT, AI_COMPLETE, Cortex Search, Cortex Analyst, Cortex Agent — 모두 동작 확인 필수. 상세: `docs/submission-checklist.md`
 
----
+## 데이터 소스
 
-## 개발 규칙
+4종 Marketplace: RICHGO (실거래가), KOSIS_DEMO (인구), KOSIS_BIZ (사업체), NICE (상권). 스키마 553컬럼. 상세: `docs/data-sources.md`
 
-### Snowflake 크레딧 절약
-- Warehouse: `XSMALL`, `AUTO_SUSPEND=60`
-- Cortex AI 호출 전 반드시 `LIMIT 10`으로 테스트
-- 결과는 테이블에 저장 → 이후 조회만 (배치 패턴)
-- **SQL 실행 전 reviewer 에이전트로 검증 권장**
+## 참고
 
-### 코드 작성 분담
-- **Claude Code (무료)**: SQL 작성, Streamlit 코드, Semantic Model YAML, 문서화
-- **Snowflake (크레딧)**: SQL 실행, 검증, 앱 배포, 데모 촬영
-
-### Cortex AI 6개 기능 (모두 동작 필수)
-1. `AI_CLASSIFY` — MBTI 4축 분류
-2. `AI_SENTIMENT` — 동네 프로필 감성 분석
-3. `AI_COMPLETE` — 성격 요약 + 이사 전망
-4. `Cortex Search` — 동네 프로필 하이브리드 검색
-5. `Cortex Analyst` — 자연어 → SQL (Semantic Model)
-6. `Cortex Agent` — Search + Analyst 오케스트레이션
-
-### 분석 단위
-- **기본**: 서울 구 단위 (~25개, ~$1)
-- **확장**: 서울 동 단위 (~400+개, ~$10+) — 여유 시만
-
-### 위키 운영
-- 티켓 완료 시 `/report`로 위키 기록
-- 페이즈 완료 시 `/checkpoint`로 체크포인트 기록
-- Wiki 리포: `https://github.com/Daterl/dongne-mbti.wiki.git`
-
----
-
-## 데이터 소스 (Marketplace 4종)
-
-| DB | 내용 |
-|----|------|
-| RICHGO_DATA_REAL_PRICE | 리치고 실거래가 (2021~2026) |
-| KOSIS_DEMOGRAPHIC | 통계청 인구·가구 |
-| KOSIS_BUSINESS | 사업체 통계 |
-| NICE_COMMERCIAL | 나이스 상권 분석 |
-
-## 참고 문서
-
-- `docs/project-plan.md` — 기획서 + 수정 일정
-- `docs/data-sources.md` — 스키마 553컬럼, JOIN 전략, MBTI 피처 매핑
+- `docs/project-plan.md` — 기획서 + 일정
+- `docs/data-sources.md` — 스키마, JOIN 전략, MBTI 피처 매핑
 - `docs/dev-strategy.md` — 크레딧 관리, 개발 흐름
-- `docs/query-examples.md` — Cortex Agent 자연어 질의 22개 예시
-- `docs/submission-checklist.md` — 제출 체크리스트
 
 ---
 
@@ -113,3 +53,4 @@
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
 | 2026-04-08 | 초기 구성 | 전체 | 하네스 신규 구축 |
+| 2026-04-08 | Why 보강 + 100줄 이내 리팩토링 | CLAUDE.md | 감사 L2→L3 개선 |
