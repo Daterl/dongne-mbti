@@ -8,6 +8,9 @@
 
 이사를 고민하는 사람이 동네의 '성격'을 MBTI로 직관적으로 이해하고, 자연어로 맞춤 동네를 찾고, 이사 타이밍까지 판단할 수 있는 AI 기반 서비스.
 
+**분석 범위**: 서울 핵심 3구(서초·영등포·중) ~55개 동 단위 딥다이브
+> SPH + RICHGO Marketplace 데이터가 3개 구를 풀커버하여, 25구 전체 대신 3구 동 단위로 피봇. 유동인구·자산·소비·시세·인구이동 데이터를 동 단위로 교차 분석하여 더 정밀한 MBTI 산출.
+
 ## 핵심 기능
 
 | 탭 | 기능 | Cortex AI |
@@ -20,7 +23,7 @@
 
 - **Platform**: Snowflake (Cortex AI 풀스택)
 - **Frontend**: Streamlit in Snowflake
-- **Data**: Snowflake Marketplace (리치고, SPH, 아정당, 넥스트레이드)
+- **Data**: Snowflake Marketplace — SPH(SKT 유동인구·KCB 자산/소득·신한카드 소비, 3구 풀데이터) + RICHGO(실거래 시세·인구이동 추정) + Telecom(이사 추정 데이터)
 - **Language**: Python
 
 ## 아키텍처

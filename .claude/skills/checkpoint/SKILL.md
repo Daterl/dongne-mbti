@@ -1,6 +1,8 @@
 ---
 name: checkpoint
-description: "개발 페이즈 완료 시 종합 체크포인트를 GitHub Wiki에 기록하는 스킬. 페이즈가 끝났을 때, 마일스톤 달성 시, '체크포인트', '페이즈 완료', '단계 정리', 'phase 리뷰', '중간 점검', '진행 점검' 등의 요청 시 반드시 이 스킬을 사용한다. /checkpoint로 트리거한다."
+description: "개발 페이즈 완료 시 종합 체크포인트를 GitHub Wiki에 기록하는 스킬. 페이즈가 끝났을 때, 마일스톤 달성 시, '체크포인트', '페이즈 완료', '단계 정리', 'phase 리뷰', '중간 점검', '진행 점검', '마일스톤', '단계 끝', '페이즈 정리' 등의 요청 시 반드시 이 스킬을 사용한다. /checkpoint로 트리거한다."
+version: "1.1"
+category: workflow
 ---
 
 # Checkpoint — 페이즈 완료 체크포인트 → GitHub Wiki

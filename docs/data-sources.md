@@ -270,45 +270,43 @@ Snowflake Cortex Code(CoCo)는 Snowsight 내장 AI 코딩 어시스턴트로, 10
 
 ## MBTI 4축 ↔ 데이터 매핑 (상세 피처)
 
-### E/I (활동성) — 외향적 vs 내향적 동네
+> **v2 (4/8)**: SPH 3구 제한 발견 → RICHGO(25구) + Telecom V01/V05(25구)로 전면 재설계.
+> SPH 데이터(유동인구, 카드소비, 자산/소득)는 중구·영등포구·서초구만 제공하므로 MBTI 핵심 피처에서 제외.
 
-| 피처 | 컬럼 | 테이블 | E 방향 | I 방향 |
-|------|------|--------|--------|--------|
-| 방문인구 비율 | `VISITING_POPULATION` / `RESIDENTIAL_POPULATION` | FLOATING_POPULATION_INFO | 높음 | 낮음 |
-| 야간 활동 비율 | `TIME_SLOT` 필터링 (18시 이후 비중) | FLOATING_POPULATION_INFO | 높음 | 낮음 |
-| 주말 유동인구 | `WEEKDAY_WEEKEND = 'WEEKEND'` 비중 | FLOATING_POPULATION_INFO | 높음 | 낮음 |
-| 엔터테인먼트 소비 | `ENTERTAINMENT_SALES` + `SPORTS_CULTURE_LEISURE_SALES` | CARD_SALES_INFO | 높음 | 낮음 |
+### E/I (활동성) — 외향적 vs 내향적 동네 (Telecom 중심)
 
-### S/N (실용vs문화) — 실용적 vs 문화적 동네
+| 피처 | 컬럼/산식 | 소스 | E 방향 | I 방향 |
+|------|----------|------|--------|--------|
+| 계약밀도 | V01 월평균 `SUM(CONTRACT_COUNT)` / RICHGO 인구 | Telecom V01 + RICHGO | 높음 | 낮음 |
+| 신규설치율 | V05 월평균 `CONTRACT_COUNT` / RICHGO 인구 | Telecom V05 + RICHGO | 높음 | 낮음 |
+| 상담비율 | V01 `CONSULT_REQUEST_COUNT` / `CONTRACT_COUNT` | Telecom V01 | 높음 | 낮음 |
 
-| 피처 | 컬럼 | 테이블 | S 방향 | N 방향 |
-|------|------|--------|--------|--------|
-| 생필품 소비 비중 | `FOOD_SALES` + `MEDICAL_SALES` + `GAS_STATION_SALES` | CARD_SALES_INFO | 높음 | 낮음 |
-| 문화/카페 소비 비중 | `COFFEE_SALES` + `SPORTS_CULTURE_LEISURE_SALES` + `TRAVEL_SALES` | CARD_SALES_INFO | 낮음 | 높음 |
-| 대형마트 vs 이커머스 | `LARGE_DISCOUNT_STORE_SALES` vs `E_COMMERCE_SALES` 비율 | CARD_SALES_INFO | 마트 우세 | 이커머스 우세 |
-| 교육 투자 | `EDUCATION_ACADEMY_SALES` 비중 | CARD_SALES_INFO | 높음 (실용) | — |
+### S/N (라이프스타일) — 실용/가정 vs 문화/개인 동네 (RICHGO 인구구조)
 
-### T/F (경제vs생활) — 경제중심 vs 생활중심 동네
+| 피처 | 컬럼/산식 | 소스 | S 방향 | N 방향 |
+|------|----------|------|--------|--------|
+| 전세가율 | `JEONSE_PRICE` / `MEME_PRICE` | RICHGO 시세 | 높음 (실거주) | 낮음 (투자) |
+| 영유아 비율 | `AGE_UNDER5_PER_FEMALE_20TO40` | RICHGO 인구 | 높음 (가정) | 낮음 |
+| 세대밀도 | `TOTAL_HOUSEHOLDS` / 인구 | RICHGO 시세+인구 | 높음 (소형가구) | 낮음 |
 
-| 피처 | 컬럼 | 테이블 | T 방향 | F 방향 |
-|------|------|--------|--------|--------|
-| 평균 소득 수준 | `AVERAGE_INCOME` | ASSET_INCOME_INFO | 높음 | — |
-| 고소득 비율 | `RATE_INCOME_OVER_70M` | ASSET_INCOME_INFO | 높음 | 낮음 |
-| 신용 점수 | `AVERAGE_SCORE` | ASSET_INCOME_INFO | 높음 | — |
-| 주택 보유 | `OWN_HOUSING_COUNT` / `CUSTOMER_COUNT` | ASSET_INCOME_INFO | 높음 | 낮음 |
-| 영유아 비율 | `AGE_UNDER5_PER_FEMALE_20TO40` | POPULATION_AGE_UNDER5 | 낮음 | 높음 |
-| 매매가 대비 전세가 | `JEONSE / MEME` 비율 | RICHGO_MARKET_PRICE | 낮음 (투자) | 높음 (거주) |
+### T/F (경제수준) — 부유한 vs 서민적 동네 (RICHGO 시세 + Telecom 지출)
 
-### J/P (안정vs변화) — 안정적 vs 변화하는 동네
+| 피처 | 컬럼/산식 | 소스 | T 방향 | F 방향 |
+|------|----------|------|--------|--------|
+| 매매 평당가 | `AVG(MEME_PRICE_PER_SUPPLY_PYEONG)` | RICHGO 시세 | 높음 | 낮음 |
+| 통신 평균매출 | V05 `AVG_NET_SALES` | Telecom V05 | 높음 | 낮음 |
+| 번들 가입율 | V05 `BUNDLE_COUNT` / (`BUNDLE` + `STANDALONE`) | Telecom V05 | 높음 | 낮음 |
 
-| 피처 | 컬럼 | 테이블 | J 방향 | P 방향 |
-|------|------|--------|--------|--------|
-| 시세 변동성 | `MEME_PRICE` 표준편차 (최근 12개월) | RICHGO_MARKET_PRICE | 낮음 | 높음 |
-| 인구 순유입 | 인구 증감률 (전월 대비) | POPULATION_GENDER_AGE | 안정 | 급변 |
-| 신규 설치 비율 | `CONTRACT_COUNT` 추이 | V01_MONTHLY_REGIONAL | 안정 | 급증 |
-| 20~30대 비율 | `AGE_20S` + `AGE_30S` / `TOTAL` | POPULATION_GENDER_AGE | 낮음 | 높음 |
+### J/P (안정성) — 안정적 vs 변화하는 동네 (변동성 지표)
 
-> **판정 기준**: 각 축별 피처를 z-score 정규화 후 가중평균. 양수면 첫 글자(E/S/T/J), 음수면 둘째 글자(I/N/F/P).
+| 피처 | 컬럼/산식 | 소스 | J 방향 | P 방향 |
+|------|----------|------|--------|--------|
+| 시세 변동성 | `STDDEV(MEME_PRICE)` / `AVG(MEME_PRICE)` | RICHGO 시세 | 낮음 | 높음 |
+| 20-30대 비율 | (`AGE_20S` + `AGE_30S`) / `TOTAL` | RICHGO 인구 | 낮음 | 높음 |
+| 계약 변동성 | V01 월별 `SUM(CONTRACT_COUNT)` 의 CV | Telecom V01 | 낮음 | 높음 |
+
+> **판정 기준**: 각 축별 3개 피처를 z-score 정규화 후 평균. 양수면 첫 글자(E/S/T/P), 음수면 둘째 글자(I/N/F/J).
+> **데이터 커버리지**: 모든 피처가 서울 25구 전체를 커버 (SPH 의존 제거).
 
 ---
 

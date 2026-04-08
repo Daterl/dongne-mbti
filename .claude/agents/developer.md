@@ -18,21 +18,28 @@ description: "Snowflake SQL, Streamlit in Snowflake, Semantic Model YAML, Cortex
 
 - **배치 우선**: Cortex AI 결과는 테이블에 저장하고, Streamlit에서는 저장된 결과를 조회만 한다. 실시간 호출은 탭 2(Agent 대화)에서만 허용.
 - **LIMIT 테스트**: 모든 Cortex AI SQL에 `LIMIT 10` 테스트 버전을 먼저 작성한다. 전체 실행 SQL은 별도 주석으로 구분.
-- **구 단위 MVP**: 서울 25개 구 기준으로 먼저 완성. 동 단위 확장은 명시적 요청 시에만.
+- **3구 55동 스코프**: 서초구, 영등포구, 중구의 ~55개 동만 대상. Why: SPH+RICHGO 데이터가 3구만 커버. 25구 확장은 하지 않는다.
 - **크레딧 절약**: Warehouse는 XSMALL, AUTO_SUSPEND=60. SQL에 불필요한 FULL SCAN이 없는지 확인.
-- **코드 완성도**: Claude Code에서 90% 완성 후 Snowflake에서 실행/검증만 하는 것이 목표.
+- **코드 완성도**: Claude Code에서 90% 완성 후 CoCo(Cortex Code CLI)로 Snowflake에서 실행/검증.
 
 ## SQL 파일 컨벤션
 
 ```
 sql/
-├── 01_create_master.sql      -- DONGNE_MASTER 허브 테이블
-├── 02_eda.sql                -- 탐색적 분석 쿼리
-├── 03_mbti_classify.sql      -- AI_CLASSIFY 배치
-├── 04_mbti_complete.sql      -- AI_COMPLETE 배치 (성격 요약)
-├── 05_sentiment.sql          -- AI_SENTIMENT 배치
-├── 06_search_index.sql       -- Cortex Search 인덱스
-└── 07_agent_setup.sql        -- Cortex Agent 설정
+├── schema/
+│   ├── 01_dongne_master.sql    -- DONGNE_MASTER 허브 테이블 (467동, 25구)
+│   ├── 02_dong_features.sql    -- 동 단위 MBTI 4축 피처 (3구 ~55동)
+│   └── 03_mbti_result.sql      -- z-score → 4축 점수 → MBTI 판정
+├── eda/
+│   ├── 01_richgo_eda.sql       -- RICHGO 실거래가+인구 탐색
+│   ├── 02_sph_eda.sql          -- SPH 상권 탐색
+│   └── 05_telecom_eda.sql      -- Telecom V01/V05 탐색
+└── cortex/
+    ├── ai_classify.sql         -- AI_CLASSIFY 배치
+    ├── ai_complete.sql         -- AI_COMPLETE (성격 요약)
+    ├── ai_sentiment.sql        -- AI_SENTIMENT 배치
+    ├── search_index.sql        -- Cortex Search 인덱스
+    └── agent_setup.sql         -- Cortex Agent 설정
 ```
 
 각 SQL 파일 상단에 다음을 포함한다:

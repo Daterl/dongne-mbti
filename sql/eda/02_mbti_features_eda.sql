@@ -1,0 +1,240 @@
+-- ============================================================
+-- 02. MBTI 4축 피처 분포 분석
+-- 각 축별 후보 피처의 분포, 평균, 표준편차, 구 간 변별력 확인
+-- 크레딧: ~$0.05 (집계 쿼리, 전체 스캔 필요)
+-- ============================================================
+
+-- ========================================
+-- E/I 축 (활동성): 외향적 vs 내향적 동네
+-- 핵심 소스: FLOATING_POPULATION_INFO
+-- ========================================
+
+-- E/I-1. 구별 방문인구 비율 = VISITING / RESIDENTIAL
+-- E 방향: 비율 높음 (외부인 유입 많음)
+SELECT
+    fp.CITY_CODE,
+    fp.DISTRICT_CODE,
+    ROUND(AVG(fp.VISITING_POPULATION), 2)     AS avg_visiting,
+    ROUND(AVG(fp.RESIDENTIAL_POPULATION), 2)  AS avg_residential,
+    ROUND(AVG(fp.WORKING_POPULATION), 2)      AS avg_working,
+    ROUND(
+        AVG(fp.VISITING_POPULATION) /
+        NULLIF(AVG(fp.RESIDENTIAL_POPULATION), 0), 4
+    ) AS visit_ratio
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.FLOATING_POPULATION_INFO fp
+GROUP BY fp.CITY_CODE, fp.DISTRICT_CODE
+ORDER BY visit_ratio DESC;
+
+-- E/I-2. 야간(18시 이후) 활동 비율 by 구
+-- TIME_SLOT 값 확인 먼저
+SELECT DISTINCT TIME_SLOT
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.FLOATING_POPULATION_INFO
+ORDER BY TIME_SLOT
+LIMIT 30;
+
+-- E/I-3. 주말 유동인구 비중 by 구
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    ROUND(SUM(CASE WHEN WEEKDAY_WEEKEND = 'WEEKEND' THEN VISITING_POPULATION ELSE 0 END) /
+          NULLIF(SUM(VISITING_POPULATION), 0), 4) AS weekend_ratio
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.FLOATING_POPULATION_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY weekend_ratio DESC;
+
+-- E/I-4. 엔터테인먼트 소비 비중 by 구
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    ROUND(AVG(ENTERTAINMENT_SALES + SPORTS_CULTURE_LEISURE_SALES), 2) AS avg_ent_spend,
+    ROUND(AVG(TOTAL_SALES), 2) AS avg_total,
+    ROUND(
+        AVG(ENTERTAINMENT_SALES + SPORTS_CULTURE_LEISURE_SALES) /
+        NULLIF(AVG(TOTAL_SALES), 0), 4
+    ) AS ent_ratio
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.CARD_SALES_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY ent_ratio DESC;
+
+
+-- ========================================
+-- S/N 축 (실용 vs 문화): 실용적 vs 문화적 동네
+-- 핵심 소스: CARD_SALES_INFO
+-- ========================================
+
+-- S/N-1. 생필품 vs 문화 소비 비율 by 구
+-- S 방향: FOOD + MEDICAL + GAS_STATION 비중 높음 (실용)
+-- N 방향: COFFEE + SPORTS_CULTURE_LEISURE + TRAVEL 비중 높음 (문화)
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    -- S 피처: 실용 소비
+    ROUND(AVG(FOOD_SALES + MEDICAL_SALES + GAS_STATION_SALES), 2) AS avg_practical,
+    -- N 피처: 문화 소비
+    ROUND(AVG(COFFEE_SALES + SPORTS_CULTURE_LEISURE_SALES + TRAVEL_SALES), 2) AS avg_cultural,
+    -- S/N 비율 (>1이면 S 성향)
+    ROUND(
+        AVG(FOOD_SALES + MEDICAL_SALES + GAS_STATION_SALES) /
+        NULLIF(AVG(COFFEE_SALES + SPORTS_CULTURE_LEISURE_SALES + TRAVEL_SALES), 0), 4
+    ) AS practical_to_cultural
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.CARD_SALES_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY practical_to_cultural DESC;
+
+-- S/N-2. 대형마트 vs 이커머스 비율 by 구
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    ROUND(AVG(LARGE_DISCOUNT_STORE_SALES), 2) AS avg_mart,
+    ROUND(AVG(E_COMMERCE_SALES), 2) AS avg_ecom,
+    ROUND(
+        AVG(LARGE_DISCOUNT_STORE_SALES) /
+        NULLIF(AVG(E_COMMERCE_SALES), 0), 4
+    ) AS mart_to_ecom
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.CARD_SALES_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY mart_to_ecom DESC;
+
+-- S/N-3. 교육/학원 투자 비중 by 구
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    ROUND(AVG(EDUCATION_ACADEMY_SALES), 2) AS avg_edu,
+    ROUND(AVG(TOTAL_SALES), 2) AS avg_total,
+    ROUND(
+        AVG(EDUCATION_ACADEMY_SALES) / NULLIF(AVG(TOTAL_SALES), 0), 4
+    ) AS edu_ratio
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.CARD_SALES_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY edu_ratio DESC;
+
+
+-- ========================================
+-- T/F 축 (경제 vs 생활): 경제중심 vs 생활중심 동네
+-- 핵심 소스: ASSET_INCOME_INFO + RICHGO
+-- ========================================
+
+-- T/F-1. 구별 소득/자산/신용 프로파일
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    ROUND(AVG(AVERAGE_INCOME), 0) AS avg_income,
+    ROUND(AVG(MEDIAN_INCOME), 0) AS med_income,
+    ROUND(AVG(AVERAGE_ASSET_AMOUNT), 0) AS avg_asset,
+    ROUND(AVG(AVERAGE_SCORE), 1) AS avg_credit_score,
+    ROUND(AVG(RATE_INCOME_OVER_70M), 4) AS high_income_rate
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.ASSET_INCOME_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY avg_income DESC;
+
+-- T/F-2. 주택 보유 비율 by 구
+SELECT
+    CITY_CODE,
+    DISTRICT_CODE,
+    ROUND(AVG(OWN_HOUSING_COUNT), 2) AS avg_own_housing,
+    ROUND(AVG(MULTIPLE_HOUSING_COUNT), 2) AS avg_multi_housing,
+    ROUND(AVG(CUSTOMER_COUNT), 2) AS avg_customers,
+    ROUND(
+        AVG(OWN_HOUSING_COUNT) / NULLIF(AVG(CUSTOMER_COUNT), 0), 4
+    ) AS own_housing_rate
+FROM SEOUL_DISTRICTLEVEL_DATA_FLOATING_POPULATION_CONSUMPTION_AND_ASSETS
+    .GRANDATA.ASSET_INCOME_INFO
+GROUP BY CITY_CODE, DISTRICT_CODE
+ORDER BY own_housing_rate DESC;
+
+-- T/F-3. 리치고 매매 vs 전세 비율 (전세가율) — 서울 구별
+-- T 방향: 전세가율 낮음 (투자 성격)
+-- F 방향: 전세가율 높음 (거주 성격)
+SELECT
+    SGG,
+    ROUND(AVG(MEME_PRICE_PER_SUPPLY_PYEONG), 0) AS avg_meme,
+    ROUND(AVG(JEONSE_PRICE_PER_SUPPLY_PYEONG), 0) AS avg_jeonse,
+    ROUND(
+        AVG(JEONSE_PRICE_PER_SUPPLY_PYEONG) /
+        NULLIF(AVG(MEME_PRICE_PER_SUPPLY_PYEONG), 0), 4
+    ) AS jeonse_ratio
+FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+    .HACKATHON_2025Q2.REGION_APT_RICHGO_MARKET_PRICE_M_H
+WHERE SD = '서울'
+  AND MEME_PRICE_PER_SUPPLY_PYEONG > 0
+GROUP BY SGG
+ORDER BY jeonse_ratio DESC;
+
+-- T/F-4. 영유아 비율 by 구 (F 방향)
+SELECT
+    SGG,
+    ROUND(AVG(AGE_UNDER5_PER_FEMALE_20TO40), 4) AS avg_child_ratio,
+    AVG(AGE_UNDER5) AS avg_under5,
+    AVG(FEMALE_20TO40) AS avg_female_2040
+FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+    .HACKATHON_2025Q2.REGION_MOIS_POPULATION_AGE_UNDER5_PER_FEMALE_20TO40_M_H
+WHERE SD = '서울'
+GROUP BY SGG
+ORDER BY avg_child_ratio DESC;
+
+
+-- ========================================
+-- J/P 축 (안정 vs 변화): 안정적 vs 변화하는 동네
+-- 핵심 소스: RICHGO (시세 변동성) + 인구 변화
+-- ========================================
+
+-- J/P-1. 시세 변동성 — 구별 최근 12개월 매매가 표준편차
+-- P 방향: 변동성 높음 (변화하는 동네)
+SELECT
+    SGG,
+    ROUND(STDDEV(MEME_PRICE_PER_SUPPLY_PYEONG), 2) AS price_stddev,
+    ROUND(AVG(MEME_PRICE_PER_SUPPLY_PYEONG), 2) AS price_avg,
+    ROUND(
+        STDDEV(MEME_PRICE_PER_SUPPLY_PYEONG) /
+        NULLIF(AVG(MEME_PRICE_PER_SUPPLY_PYEONG), 0), 4
+    ) AS cv  -- 변동계수 (Coefficient of Variation)
+FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+    .HACKATHON_2025Q2.REGION_APT_RICHGO_MARKET_PRICE_M_H
+WHERE SD = '서울'
+  AND YYYYMMDD >= DATEADD(MONTH, -12, CURRENT_DATE())
+GROUP BY SGG
+ORDER BY cv DESC;
+
+-- J/P-2. 20~30대 비율 — 젊은 인구 많으면 P 성향
+SELECT
+    SGG,
+    SUM(AGE_20S + AGE_30S) AS young_pop,
+    SUM(TOTAL) AS total_pop,
+    ROUND(SUM(AGE_20S + AGE_30S) / NULLIF(SUM(TOTAL), 0), 4) AS young_ratio
+FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+    .HACKATHON_2025Q2.REGION_MOIS_POPULATION_GENDER_AGE_M_H
+WHERE SD = '서울'
+GROUP BY SGG
+ORDER BY young_ratio DESC;
+
+-- J/P-3. 인구 변화율 — 최근 vs 이전 기간 비교
+-- (시간 범위에 따라 조정 필요)
+SELECT
+    SGG,
+    SUM(CASE WHEN YYYYMMDD = (SELECT MAX(YYYYMMDD) FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+        .HACKATHON_2025Q2.REGION_MOIS_POPULATION_GENDER_AGE_M_H) THEN TOTAL ELSE 0 END) AS latest_pop,
+    SUM(CASE WHEN YYYYMMDD = (SELECT MIN(YYYYMMDD) FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+        .HACKATHON_2025Q2.REGION_MOIS_POPULATION_GENDER_AGE_M_H) THEN TOTAL ELSE 0 END) AS earliest_pop
+FROM KOREAN_POPULATION__APARTMENT_MARKET_PRICE_DATA
+    .HACKATHON_2025Q2.REGION_MOIS_POPULATION_GENDER_AGE_M_H
+WHERE SD = '서울'
+GROUP BY SGG
+ORDER BY SGG;
+
+
+-- ========================================
+-- 종합: 구별 4축 변별력 확인
+-- 위 쿼리 결과가 나오면 구 간 분산이 충분한지 확인
+-- 분산이 작으면 = 구별 차이가 없어 MBTI 분류가 무의미
+-- ========================================
+
+-- 이 쿼리는 위 결과를 본 뒤 최종 정리용으로 사용
+-- (CTE로 4축 피처를 합친 구별 프로파일)
