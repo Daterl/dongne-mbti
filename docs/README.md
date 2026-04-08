@@ -11,3 +11,4 @@
 | [data-sources.md](./data-sources.md) | 데이터 스키마, JOIN 전략, CoCo 스킬, MBTI 피처 매핑 |
 | [query-examples.md](./query-examples.md) | Cortex Agent 자연어 질의 예시 모음 |
 | [submission-checklist.md](./submission-checklist.md) | 제출 체크리스트 (PPT, 영상, ZIP, 심사 대비) |
+| [dev-strategy.md](./dev-strategy.md) | 개발 전략 (도구 분담, 크레딧 관리, 개발 흐름) |
