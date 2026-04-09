@@ -1,4 +1,3 @@
 name: sf_env
 dependencies:
-  - streamlit>=1.26
   - plotly
