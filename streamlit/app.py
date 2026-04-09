@@ -8,6 +8,13 @@ import pandas as pd
 import plotly.graph_objects as go
 from snowflake.snowpark.context import get_active_session
 
+
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """#RRGGBB → rgba(r,g,b,alpha) 변환 (plotly 구버전 호환)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 # ── 페이지 설정 ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="동네 MBTI",
@@ -186,7 +193,7 @@ with tab1:
             r=normalized + [normalized[0]],
             theta=categories + [categories[0]],
             fill="toself",
-            fillcolor=color + "55",
+            fillcolor=hex_to_rgba(color, 0.33),
             line=dict(color=color, width=2),
             name=mbti,
         ))
@@ -234,7 +241,7 @@ with tab1:
             r=[max(0, min(1, (row[a] + 3) / 6)) for a in axes] + [max(0, min(1, (row[axes[0]] + 3) / 6))],
             theta=labels + [labels[0]],
             fill="toself",
-            fillcolor=color + "44",
+            fillcolor=hex_to_rgba(color, 0.27),
             line=dict(color=color, width=2),
             name=f"{selected_dong} ({mbti})",
         ))
@@ -243,7 +250,7 @@ with tab1:
             r=[max(0, min(1, (c_row[a] + 3) / 6)) for a in axes] + [max(0, min(1, (c_row[axes[0]] + 3) / 6))],
             theta=labels + [labels[0]],
             fill="toself",
-            fillcolor=c_color + "44",
+            fillcolor=hex_to_rgba(c_color, 0.27),
             line=dict(color=c_color, width=2, dash="dash"),
             name=f"{c_dong} ({c_row['MBTI']})",
         ))
