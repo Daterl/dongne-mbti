@@ -486,32 +486,25 @@ with tab3:
         price_df["YYYYMMDD"] = pd.to_datetime(price_df["YYYYMMDD"].astype(str), errors="coerce")
         price_df = price_df.dropna(subset=["YYYYMMDD"]).sort_values("YYYYMMDD")
 
-        # 이상값 제거 (IQR 3배 초과 → 단위 불일치 데이터 방어)
-        q1 = price_df["AVG_PRICE"].quantile(0.25)
-        q3 = price_df["AVG_PRICE"].quantile(0.75)
-        iqr = q3 - q1
-        upper_fence = q3 + 3 * iqr
-        price_df = price_df[price_df["AVG_PRICE"] <= upper_fence]
-
         # ML 예측 데이터 로드
         forecast_df = load_forecast(t3_gu, t3_dong)
         has_forecast = not forecast_df.empty
 
         if has_forecast:
             forecast_df["TS"] = pd.to_datetime(forecast_df["TS"])
-            # NaN 방어 처리
             forecast_df["FORECAST_PRICE"] = pd.to_numeric(forecast_df["FORECAST_PRICE"], errors="coerce")
             forecast_df["LOWER_BOUND"] = pd.to_numeric(forecast_df["LOWER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
             forecast_df["UPPER_BOUND"] = pd.to_numeric(forecast_df["UPPER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
-            # 실거래 스케일과 예측 스케일 자동 맞춤 (단위 불일치 방어)
+
+        # ── 단위 자동 정규화 (백만원 → 만원 변환) ──
+        # MEME_PRICE_PER_SUPPLY_PYEONG이 백만원 단위 저장 시 × 100 보정
+        # ML FORECAST는 만원 단위 기준으로 훈련되어 있으므로 실거래가를 맞춤
+        if has_forecast:
             actual_mean = price_df["AVG_PRICE"].mean()
             forecast_mean = forecast_df["FORECAST_PRICE"].mean()
-            if forecast_mean > 0:
-                ratio = actual_mean / forecast_mean
-                if ratio > 100 or ratio < 0.01:
-                    forecast_df["FORECAST_PRICE"] *= ratio
-                    forecast_df["LOWER_BOUND"] *= ratio
-                    forecast_df["UPPER_BOUND"] *= ratio
+            if actual_mean > 0 and forecast_mean / actual_mean > 50:
+                price_df = price_df.copy()
+                price_df["AVG_PRICE"] = price_df["AVG_PRICE"] * 100
 
         # ── 통합 시세 차트 (실적 + ML 예측) ──
         fig3 = go.Figure()
