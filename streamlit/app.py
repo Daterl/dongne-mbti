@@ -569,7 +569,7 @@ with tab3:
                     )
                     forecast = session.sql(f"""
                         SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                            'auto',
+                            'mistral-large2',
                             '{forecast_prompt.replace("'", "''")}'
                         ) AS FORECAST
                     """).collect()[0]["FORECAST"]
