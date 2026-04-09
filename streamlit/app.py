@@ -313,29 +313,28 @@ with tab2:
         with st.spinner("동네를 찾고 있어요..."):
             result_data = None
             answer_text = ""
+            safe_prompt = prompt.replace("'", "''")
             try:
-                # ── Step 1: Cortex Search — 시맨틱 동네 검색 ──
-                from snowflake.core import Root
-                root = Root(session)
-                svc = (
-                    root.databases["DONGNE_MBTI"]
-                    .schemas["PUBLIC"]
-                    .cortex_search_services["DONGNE_SEARCH"]
-                )
-                resp = svc.search(
-                    query=prompt,
-                    columns=["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY", "PROFILE_TEXT"],
-                    limit=5,
-                )
-                hits = resp.results
+                # ── Step 1: Cortex Search — SQL 직접 호출 ──
+                import json
+                raw = session.sql(f"""
+                    SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
+                        'DONGNE_MBTI', 'PUBLIC', 'DONGNE_SEARCH',
+                        OBJECT_CONSTRUCT(
+                            'query', '{safe_prompt}',
+                            'columns', ARRAY_CONSTRUCT('SGG','EMD','MBTI','CHARACTER_SUMMARY','PROFILE_TEXT'),
+                            'limit', 5
+                        )::VARCHAR
+                    ) AS RES
+                """).collect()[0]["RES"]
+                hits = json.loads(raw).get("results", [])
 
                 if hits:
-                    context_lines = "\n".join(
+                    context_lines = "\\n".join(
                         f"- {h['SGG']} {h['EMD']} ({h['MBTI']}): {h['CHARACTER_SUMMARY']}"
                         for h in hits
                     )
-                    safe_context = context_lines.replace("'", "''").replace("\n", "\\n")
-                    safe_prompt = prompt.replace("'", "''")
+                    safe_ctx = context_lines.replace("'", "''")
 
                     # ── Step 2: CORTEX.COMPLETE — 검색 결과 기반 AI 응답 ──
                     answer_text = session.sql(f"""
@@ -343,38 +342,51 @@ with tab2:
                             'mistral-large2',
                             ARRAY_CONSTRUCT(
                                 OBJECT_CONSTRUCT('role', 'system', 'content',
-                                    '당신은 서울 동네 MBTI 전문가입니다. 아래 검색된 동네들을 참고해 사용자 질문에 친근하고 재미있게 답하세요. 동네 이름과 MBTI 유형을 반드시 언급하세요.\\n\\n검색된 동네:\\n{safe_context}'),
+                                    '당신은 서울 동네 MBTI 전문가입니다. 아래 동네들을 참고해 질문에 친근하고 재미있게 답하세요. 동네 이름과 MBTI를 반드시 언급하세요.\\n검색된 동네:\\n{safe_ctx}'),
                                 OBJECT_CONSTRUCT('role', 'user', 'content', '{safe_prompt}')
                             )
                         ) AS ANSWER
                     """).collect()[0]["ANSWER"]
 
                     result_data = pd.DataFrame([
-                        {
-                            "구": h["SGG"], "동": h["EMD"],
-                            "MBTI": h["MBTI"], "한줄 요약": h["CHARACTER_SUMMARY"],
-                        }
+                        {"구": h["SGG"], "동": h["EMD"], "MBTI": h["MBTI"], "한줄 요약": h["CHARACTER_SUMMARY"]}
                         for h in hits
                     ])
                 else:
                     answer_text = "관련 동네를 찾지 못했어요. 다른 키워드로 다시 물어봐 주세요."
 
-            except Exception:
-                # ── Fallback: 직접 SQL 검색 ──
+            except Exception as e:
+                # ── Fallback: CORTEX.COMPLETE + 전체 프로필 컨텍스트 ──
                 try:
-                    safe_p = prompt.replace("'", "''")
-                    fallback_df = session.sql(f"""
-                        SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY
+                    top_df = session.sql("""
+                        SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY, PROFILE_TEXT,
+                               EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
                         FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
-                        ORDER BY TF_SCORE DESC
-                        LIMIT 5
+                        ORDER BY ABS(TF_SCORE) + ABS(EI_SCORE) DESC
+                        LIMIT 20
                     """).to_pandas()
-                    answer_text = "_(AI 검색 대신 인기 동네를 보여드립니다)_"
-                    result_data = fallback_df.rename(
+
+                    ctx = "\\n".join(
+                        f"- {r['SGG']} {r['EMD']} ({r['MBTI']}): {r['CHARACTER_SUMMARY']}"
+                        for _, r in top_df.iterrows()
+                    ).replace("'", "''")
+
+                    answer_text = session.sql(f"""
+                        SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                            'mistral-large2',
+                            ARRAY_CONSTRUCT(
+                                OBJECT_CONSTRUCT('role', 'system', 'content',
+                                    '당신은 서울 동네 MBTI 전문가입니다. 아래 동네 목록에서 질문에 맞는 동네를 추천하세요.\\n동네 목록:\\n{ctx}'),
+                                OBJECT_CONSTRUCT('role', 'user', 'content', '{safe_prompt}')
+                            )
+                        ) AS ANSWER
+                    """).collect()[0]["ANSWER"]
+
+                    result_data = top_df[["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY"]].rename(
                         columns={"SGG": "구", "EMD": "동", "CHARACTER_SUMMARY": "한줄 요약"}
-                    )
+                    ).head(5)
                 except Exception as fb_err:
-                    answer_text = f"⚠️ 오류가 발생했습니다: {str(fb_err)[:100]}"
+                    answer_text = f"⚠️ 오류: {str(fb_err)[:120]}"
 
         st.session_state.messages.append({
             "role": "assistant",
