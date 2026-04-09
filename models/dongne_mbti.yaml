@@ -8,6 +8,10 @@ tables:
       database: DONGNE_MBTI
       schema: PUBLIC
       table: DONG_MBTI_RESULT
+    primary_key:
+      columns:
+        - SGG
+        - EMD
     dimensions:
       - name: sgg
         description: "구 이름. 서초구, 영등포구, 중구 중 하나."
@@ -58,6 +62,10 @@ tables:
       database: DONGNE_MBTI
       schema: PUBLIC
       table: DONG_PROFILES
+    primary_key:
+      columns:
+        - SGG
+        - EMD
     dimensions:
       - name: sgg
         description: "구 이름."
@@ -95,6 +103,10 @@ tables:
       database: DONGNE_MBTI
       schema: PUBLIC
       table: DONG_FEAT_TF
+    primary_key:
+      columns:
+        - SGG
+        - EMD
     dimensions:
       - name: sgg
         description: "구 이름."
@@ -124,6 +136,10 @@ tables:
       database: DONGNE_MBTI
       schema: PUBLIC
       table: DONG_FEAT_EI
+    primary_key:
+      columns:
+        - SGG
+        - EMD
     dimensions:
       - name: sgg
         description: "구 이름."
@@ -149,6 +165,10 @@ tables:
       database: DONGNE_MBTI
       schema: PUBLIC
       table: DONG_FEAT_JP
+    primary_key:
+      columns:
+        - SGG
+        - EMD
     dimensions:
       - name: sgg
         description: "구 이름."
@@ -172,7 +192,7 @@ relationships:
   - name: profiles_to_result
     left_table: DONG_PROFILES
     right_table: DONG_MBTI_RESULT
-    join_type: LEFT
+    join_type: left_outer
     relationship_columns:
       - left_column: SGG
         right_column: SGG
@@ -181,7 +201,7 @@ relationships:
   - name: result_to_feat_tf
     left_table: DONG_MBTI_RESULT
     right_table: DONG_FEAT_TF
-    join_type: LEFT
+    join_type: left_outer
     relationship_columns:
       - left_column: SGG
         right_column: SGG
@@ -190,7 +210,7 @@ relationships:
   - name: result_to_feat_ei
     left_table: DONG_MBTI_RESULT
     right_table: DONG_FEAT_EI
-    join_type: LEFT
+    join_type: left_outer
     relationship_columns:
       - left_column: SGG
         right_column: SGG
@@ -199,7 +219,7 @@ relationships:
   - name: result_to_feat_jp
     left_table: DONG_MBTI_RESULT
     right_table: DONG_FEAT_JP
-    join_type: LEFT
+    join_type: left_outer
     relationship_columns:
       - left_column: SGG
         right_column: SGG
