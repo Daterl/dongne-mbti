@@ -12,7 +12,7 @@ tools: ["*"]
 
 | 이슈 | 역할 | 설명 |
 |---|---|---|
-| **#5** | 검증 | 3구 55동 피처 테이블 재작성 후 데이터 완전성 검증 (SQL 작성은 오케스트레이터가 직접 처리) |
+| **#5** | 검증 | 3구 118동 피처 테이블 재작성 후 데이터 완전성 검증 (SQL 작성은 오케스트레이터가 직접 처리) |
 | **#18** | E2E 테스트 | SiS 배포 후 전체 파이프라인 End-to-End 검증 |
 
 ## 의존성
@@ -35,7 +35,7 @@ tools: ["*"]
 
 ## 핵심 기능
 
-### 0. 이슈 #5 — 3구 55동 피처 테이블 검증 체크리스트
+### 0. 이슈 #5 — 3구 118동 피처 테이블 검증 체크리스트
 
 DONG_FEAT_* 테이블 재작성 후 아래 항목을 **반드시** 검증:
 
@@ -45,16 +45,14 @@ SELECT SGG, COUNT(DISTINCT EMD) AS dong_count
 FROM DONG_FEAT_EI  -- EI/SN/TF/JP 각각 실행
 GROUP BY SGG
 ORDER BY SGG;
--- 기대: 서초구 ~18, 영등포구 ~18, 중구 ~15 (합계 ~55)
+-- 실측: 서초구=10, 영등포구=34, 중구=74 (합계=118)
 
--- (B) 소스별 커버리지: SPH/RICHGO/Telecom 각각 몇 동 커버?
+-- (B) 소스별 커버리지: SPH/RICHGO 각각 몇 동 커버?
 SELECT '동 총수' AS metric, COUNT(DISTINCT EMD) FROM DONGNE_MASTER WHERE SGG IN ('서초구','영등포구','중구')
 UNION ALL
-SELECT 'SPH 커버', COUNT(DISTINCT EMD) FROM DONG_FEAT_EI WHERE EI_SCORE IS NOT NULL
+SELECT 'SPH 커버', COUNT(DISTINCT DISTRICT_CODE) FROM DONG_FEAT_EI WHERE visit_ratio IS NOT NULL
 UNION ALL
-SELECT 'RICHGO 커버', COUNT(DISTINCT EMD) FROM DONG_FEAT_TF WHERE TF_SCORE IS NOT NULL
-UNION ALL
-SELECT 'Telecom 커버', COUNT(DISTINCT EMD) FROM DONG_FEAT_JP WHERE JP_SCORE IS NOT NULL;
+SELECT 'RICHGO 커버', COUNT(DISTINCT DISTRICT_CODE) FROM DONG_FEAT_JP WHERE price_cv IS NOT NULL;
 
 -- (C) 4축 점수 NULL 비율 < 10%
 SELECT
@@ -66,9 +64,12 @@ FROM DONG_MBTI_RESULT;
 -- 통과 기준: 모든 축 NULL < 10%
 
 -- (D) MBTI 결과 다양성: NULL이 아닌 MBTI 유형이 3종 이상
-SELECT MBTI_TYPE, COUNT(*) FROM DONG_MBTI_RESULT
-WHERE MBTI_TYPE IS NOT NULL GROUP BY MBTI_TYPE ORDER BY COUNT(*) DESC;
+SELECT mbti, COUNT(*) FROM DONG_MBTI_RESULT
+WHERE mbti IS NOT NULL GROUP BY mbti ORDER BY COUNT(*) DESC;
 -- 통과 기준: 3종 이상 MBTI 유형 존재 (v2 22구 NULL 문제 재발 방지)
+
+-- (E) 컬럼명 참조 — 실제 SQL(03_dong_mbti_result.sql) 기준
+-- DONG_MBTI_RESULT 컬럼: sgg, emd, ei_score, sn_score, tf_score, jp_score, mbti (소문자)
 ```
 
 **#5 완료 판정**: (A) 동 수 ≥ 50 AND (B) 각 소스 커버 ≥ 40동 AND (C) NULL < 10% AND (D) MBTI ≥ 3종

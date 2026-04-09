@@ -270,43 +270,44 @@ Snowflake Cortex Code(CoCo)는 Snowsight 내장 AI 코딩 어시스턴트로, 10
 
 ## MBTI 4축 ↔ 데이터 매핑 (상세 피처)
 
-> **v2 (4/8)**: SPH 3구 제한 발견 → RICHGO(25구) + Telecom V01/V05(25구)로 전면 재설계.
-> SPH 데이터(유동인구, 카드소비, 자산/소득)는 중구·영등포구·서초구만 제공하므로 MBTI 핵심 피처에서 제외.
+> **v3 (4/8)**: 3구 55동 딥다이브 피봇. SPH(3구 유동인구/카드소비/자산) + RICHGO(3구 시세/인구)로 동 단위 MBTI.
+> Telecom은 구 단위만 제공하므로 동 내 공유값으로 보조 활용.
 
-### E/I (활동성) — 외향적 vs 내향적 동네 (Telecom 중심)
+### E/I (활동성) — 외향적 vs 내향적 동네 (SPH 유동인구)
 
 | 피처 | 컬럼/산식 | 소스 | E 방향 | I 방향 |
 |------|----------|------|--------|--------|
-| 계약밀도 | V01 월평균 `SUM(CONTRACT_COUNT)` / RICHGO 인구 | Telecom V01 + RICHGO | 높음 | 낮음 |
-| 신규설치율 | V05 월평균 `CONTRACT_COUNT` / RICHGO 인구 | Telecom V05 + RICHGO | 높음 | 낮음 |
-| 상담비율 | V01 `CONSULT_REQUEST_COUNT` / `CONTRACT_COUNT` | Telecom V01 | 높음 | 낮음 |
+| 방문비율 | `VISITING_POPULATION / (RESIDENTIAL + WORKING + VISITING)` | SPH FLOATING_POPULATION | 높음 | 낮음 |
+| 주말비율 | 주말 유동인구 / 전체 유동인구 | SPH FLOATING_POPULATION | 높음 | 낮음 |
+| 유흥비율 | `ENTERTAINMENT_SALES / TOTAL_SALES` | SPH CARD_SALES | 높음 | 낮음 |
 
-### S/N (라이프스타일) — 실용/가정 vs 문화/개인 동네 (RICHGO 인구구조)
+### S/N (라이프스타일) — 실용/가정 vs 문화/개인 동네 (SPH 카드소비)
 
 | 피처 | 컬럼/산식 | 소스 | S 방향 | N 방향 |
 |------|----------|------|--------|--------|
-| 전세가율 | `JEONSE_PRICE` / `MEME_PRICE` | RICHGO 시세 | 높음 (실거주) | 낮음 (투자) |
-| 영유아 비율 | `AGE_UNDER5_PER_FEMALE_20TO40` | RICHGO 인구 | 높음 (가정) | 낮음 |
-| 세대밀도 | `TOTAL_HOUSEHOLDS` / 인구 | RICHGO 시세+인구 | 높음 (소형가구) | 낮음 |
+| 실용소비율 | `(FOOD_SALES + MEDICAL_SALES) / TOTAL_SALES` | SPH CARD_SALES | 높음 | 낮음 |
+| 교육비율 | `EDUCATION_ACADEMY_SALES / TOTAL_SALES` | SPH CARD_SALES | 높음 | 낮음 |
+| 문화소비율 | `(COFFEE + ENTERTAINMENT + SPORTS_CULTURE_LEISURE) / TOTAL` | SPH CARD_SALES | 낮음 | **높음 (N방향)** |
 
-### T/F (경제수준) — 부유한 vs 서민적 동네 (RICHGO 시세 + Telecom 지출)
+### T/F (경제수준) — 부유한 vs 서민적 동네 (SPH 자산 + RICHGO 시세)
 
 | 피처 | 컬럼/산식 | 소스 | T 방향 | F 방향 |
 |------|----------|------|--------|--------|
-| 매매 평당가 | `AVG(MEME_PRICE_PER_SUPPLY_PYEONG)` | RICHGO 시세 | 높음 | 낮음 |
-| 통신 평균매출 | V05 `AVG_NET_SALES` | Telecom V05 | 높음 | 낮음 |
-| 번들 가입율 | V05 `BUNDLE_COUNT` / (`BUNDLE` + `STANDALONE`) | Telecom V05 | 높음 | 낮음 |
+| 평균소득 | `AVG(AVERAGE_INCOME)` | SPH ASSET_INCOME | 높음 | 낮음 |
+| 평균자산 | `AVG(AVERAGE_ASSET_AMOUNT)` | SPH ASSET_INCOME | 높음 | 낮음 |
+| 매매평당가 | `AVG(MEME_PRICE_PER_SUPPLY_PYEONG)` COALESCE(동→구) | RICHGO 시세 | 높음 | 낮음 |
 
-### J/P (안정성) — 안정적 vs 변화하는 동네 (변동성 지표)
+### J/P (안정성) — 안정적 vs 변화하는 동네 (RICHGO 변동성)
 
 | 피처 | 컬럼/산식 | 소스 | J 방향 | P 방향 |
 |------|----------|------|--------|--------|
-| 시세 변동성 | `STDDEV(MEME_PRICE)` / `AVG(MEME_PRICE)` | RICHGO 시세 | 낮음 | 높음 |
-| 20-30대 비율 | (`AGE_20S` + `AGE_30S`) / `TOTAL` | RICHGO 인구 | 낮음 | 높음 |
-| 계약 변동성 | V01 월별 `SUM(CONTRACT_COUNT)` 의 CV | Telecom V01 | 낮음 | 높음 |
+| 시세변동성 | `STDDEV(MEME_PRICE) / AVG(MEME_PRICE)` COALESCE(동→구) | RICHGO 시세 | 낮음 | 높음 |
+| 청년비율 | `(AGE_20~30대) / TOTAL` COALESCE(동→구) | RICHGO 인구 | 낮음 | 높음 |
 
-> **판정 기준**: 각 축별 3개 피처를 z-score 정규화 후 평균. 양수면 첫 글자(E/S/T/P), 음수면 둘째 글자(I/N/F/J).
-> **데이터 커버리지**: 모든 피처가 서울 25구 전체를 커버 (SPH 의존 제거).
+> **판정 기준**: 각 축별 피처를 z-score 정규화 후 평균. 양수면 첫 글자(E/S/T/J), 음수면 둘째 글자(I/N/F/P).
+> **특이사항**: S/N축의 culture_ratio는 N방향이므로 z-score 부호 반전. J/P축은 2개 피처만 사용(÷2).
+> **RICHGO 동→구 fallback**: 동 단위 데이터 없을 시 `COALESCE(동, 구평균)` 패턴 적용.
+> **스코프**: 서초구·영등포구·중구 ~55개 동. SQL: `sql/schema/02_dong_features.sql`, `03_dong_mbti_result.sql`
 
 ---
 
