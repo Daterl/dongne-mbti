@@ -1,0 +1,23 @@
+-- =============================================================
+-- 05_dong_profiles_sentiment.sql
+-- 이슈 #8: AI_SENTIMENT로 PROFILE_TEXT 감성 점수 추가
+-- =============================================================
+
+-- DONG_PROFILES에 SENTIMENT_SCORE 컬럼 추가
+ALTER TABLE DONGNE_MBTI.PUBLIC.DONG_PROFILES
+  ADD COLUMN IF NOT EXISTS SENTIMENT_SCORE FLOAT;
+
+-- AI_SENTIMENT로 PROFILE_TEXT 감성 분석
+UPDATE DONGNE_MBTI.PUBLIC.DONG_PROFILES
+SET SENTIMENT_SCORE = SNOWFLAKE.CORTEX.SENTIMENT(PROFILE_TEXT);
+
+-- 검증
+SELECT
+    COUNT(*) AS total,
+    ROUND(MIN(SENTIMENT_SCORE), 4) AS min_score,
+    ROUND(AVG(SENTIMENT_SCORE), 4) AS avg_score,
+    ROUND(MAX(SENTIMENT_SCORE), 4) AS max_score,
+    SUM(CASE WHEN SENTIMENT_SCORE > 0.1 THEN 1 ELSE 0 END) AS positive,
+    SUM(CASE WHEN SENTIMENT_SCORE BETWEEN -0.1 AND 0.1 THEN 1 ELSE 0 END) AS neutral,
+    SUM(CASE WHEN SENTIMENT_SCORE < -0.1 THEN 1 ELSE 0 END) AS negative
+FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES;
