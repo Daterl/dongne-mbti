@@ -281,95 +281,95 @@ with tab2:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # ── 추천 질문 버튼 ──
-    SUGGESTIONS = [
-        "조용하고 안정적인 동네 어디야?",
-        "젊고 활발한 분위기 동네 추천해줘",
-        "서초구에서 부유한 동네 알려줘",
-        "반포동이랑 비슷한 동네 찾아줘",
-    ]
-    st.markdown("**빠른 질문:**")
-    col_a, col_b = st.columns(2)
-    for i, sug in enumerate(SUGGESTIONS):
-        col = col_a if i % 2 == 0 else col_b
-        if col.button(sug, key=f"sug_{i}", use_container_width=True):
-            st.session_state["_pending"] = sug
+    # ── 추천 질문 버튼 (대화 시작 전에만 표시) ──
+    if not st.session_state.messages:
+        SUGGESTIONS = [
+            "조용하고 안정적인 동네 어디야?",
+            "젊고 활발한 분위기 동네 추천해줘",
+            "서초구에서 부유한 동네 알려줘",
+            "반포동이랑 비슷한 동네 찾아줘",
+        ]
+        st.markdown("**빠른 질문:**")
+        col_a, col_b = st.columns(2)
+        for i, sug in enumerate(SUGGESTIONS):
+            col = col_a if i % 2 == 0 else col_b
+            if col.button(sug, key=f"sug_{i}", use_container_width=True):
+                st.session_state["_pending"] = sug
+                st.rerun()
 
-    # ── 텍스트 입력 (st.chat_input 대신 text_input 사용) ──
-    with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input(
-            "질문 입력",
-            placeholder="예: 서초구에서 조용하고 부유한 동네 추천해줘",
-            label_visibility="collapsed",
-        )
-        submitted = st.form_submit_button("검색", use_container_width=True)
+    # ── 대화 히스토리 출력 ──
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if msg.get("data") is not None:
+                st.dataframe(msg["data"], use_container_width=True, hide_index=True)
 
+    # ── 채팅 입력 ──
     prompt = st.session_state.pop("_pending", None)
-    if submitted and user_input:
-        prompt = user_input
+    if chat_in := st.chat_input("예: 서초구에서 조용하고 부유한 동네 추천해줘"):
+        prompt = chat_in
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.spinner("동네를 찾고 있어요..."):
-            result_data = None
-            answer_text = ""
-            safe_prompt = prompt.replace("'", "''")
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-            # ── Step 1: 키워드 기반 SQL로 후보 동네 추출 ──
-            try:
-                cand_df = session.sql(f"""
-                    SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY, PROFILE_TEXT,
-                           EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
-                    FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
-                    ORDER BY (
-                        CASE WHEN PROFILE_TEXT ILIKE '%{safe_prompt[:15]}%' THEN 3 ELSE 0 END +
-                        CASE WHEN CHARACTER_SUMMARY ILIKE '%{safe_prompt[:10]}%' THEN 2 ELSE 0 END +
-                        CASE WHEN '{safe_prompt}' ILIKE '%조용%' AND EI_SCORE < 0 THEN 2 ELSE 0 END +
-                        CASE WHEN '{safe_prompt}' ILIKE '%활발%' AND EI_SCORE > 0 THEN 2 ELSE 0 END +
-                        CASE WHEN '{safe_prompt}' ILIKE '%부유%' AND TF_SCORE > 0 THEN 2 ELSE 0 END +
-                        CASE WHEN '{safe_prompt}' ILIKE '%서민%' AND TF_SCORE < 0 THEN 2 ELSE 0 END +
-                        CASE WHEN '{safe_prompt}' ILIKE '%젊%' AND JP_SCORE > 0 THEN 2 ELSE 0 END +
-                        CASE WHEN '{safe_prompt}' ILIKE '%안정%' AND JP_SCORE < 0 THEN 2 ELSE 0 END
-                    ) DESC, ABS(TF_SCORE) + ABS(EI_SCORE) DESC
-                    LIMIT 5
-                """).to_pandas()
+        with st.chat_message("assistant"):
+            with st.spinner("동네를 찾고 있어요..."):
+                result_data = None
+                answer_text = ""
+                safe_prompt = prompt.replace("'", "''")
 
-                ctx = " | ".join(
-                    f"{r['SGG']} {r['EMD']}({r['MBTI']}): {r['CHARACTER_SUMMARY']}"
-                    for _, r in cand_df.iterrows()
-                ).replace("'", "''")
+                # ── Step 1: 키워드+MBTI축 기반 SQL로 후보 동네 추출 ──
+                try:
+                    cand_df = session.sql(f"""
+                        SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY, PROFILE_TEXT,
+                               EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
+                        FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
+                        ORDER BY (
+                            CASE WHEN PROFILE_TEXT ILIKE '%{safe_prompt[:15]}%' THEN 3 ELSE 0 END +
+                            CASE WHEN CHARACTER_SUMMARY ILIKE '%{safe_prompt[:10]}%' THEN 2 ELSE 0 END +
+                            CASE WHEN '{safe_prompt}' ILIKE '%조용%' AND EI_SCORE < 0 THEN 2 ELSE 0 END +
+                            CASE WHEN '{safe_prompt}' ILIKE '%활발%' AND EI_SCORE > 0 THEN 2 ELSE 0 END +
+                            CASE WHEN '{safe_prompt}' ILIKE '%부유%' AND TF_SCORE > 0 THEN 2 ELSE 0 END +
+                            CASE WHEN '{safe_prompt}' ILIKE '%서민%' AND TF_SCORE < 0 THEN 2 ELSE 0 END +
+                            CASE WHEN '{safe_prompt}' ILIKE '%젊%' AND JP_SCORE > 0 THEN 2 ELSE 0 END +
+                            CASE WHEN '{safe_prompt}' ILIKE '%안정%' AND JP_SCORE < 0 THEN 2 ELSE 0 END
+                        ) DESC, ABS(TF_SCORE) + ABS(EI_SCORE) DESC
+                        LIMIT 5
+                    """).to_pandas()
 
-                # ── Step 2: CORTEX.COMPLETE (단순 문자열 방식) ──
-                full_prompt = (
-                    f"당신은 서울 동네 MBTI 전문가입니다. "
-                    f"다음 동네들을 참고해서 질문에 친근하게 답해주세요. "
-                    f"동네 이름과 MBTI를 반드시 언급하세요. "
-                    f"참고 동네: {ctx}. "
-                    f"질문: {safe_prompt}"
-                )
-                answer_text = session.sql(f"""
-                    SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large2', '{full_prompt}') AS ANSWER
-                """).collect()[0]["ANSWER"]
+                    ctx = " | ".join(
+                        f"{r['SGG']} {r['EMD']}({r['MBTI']}): {r['CHARACTER_SUMMARY']}"
+                        for _, r in cand_df.iterrows()
+                    ).replace("'", "''")
 
-                result_data = cand_df[["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY"]].rename(
-                    columns={"SGG": "구", "EMD": "동", "CHARACTER_SUMMARY": "한줄 요약"}
-                )
-            except Exception as e:
-                answer_text = f"⚠️ 오류: {str(e)[:150]}"
+                    # ── Step 2: CORTEX.COMPLETE ──
+                    full_prompt = (
+                        f"당신은 서울 동네 MBTI 전문가입니다. "
+                        f"다음 동네들을 참고해서 질문에 친근하게 답해주세요. "
+                        f"동네 이름과 MBTI를 반드시 언급하세요. "
+                        f"참고 동네: {ctx}. 질문: {safe_prompt}"
+                    )
+                    answer_text = session.sql(f"""
+                        SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large2', '{full_prompt}') AS ANSWER
+                    """).collect()[0]["ANSWER"]
+
+                    result_data = cand_df[["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY"]].rename(
+                        columns={"SGG": "구", "EMD": "동", "CHARACTER_SUMMARY": "한줄 요약"}
+                    )
+                except Exception as e:
+                    answer_text = f"⚠️ 오류: {str(e)[:150]}"
+
+                st.markdown(answer_text)
+                if result_data is not None and not result_data.empty:
+                    st.dataframe(result_data, use_container_width=True, hide_index=True)
 
         st.session_state.messages.append({
             "role": "assistant",
             "content": answer_text,
             "data": result_data,
         })
-
-    # ── 대화 히스토리 출력 ──
-    for msg in reversed(st.session_state.messages):
-        prefix = "🧑 " if msg["role"] == "user" else "🤖 "
-        st.markdown(f"{prefix} **{msg['content']}**" if msg["role"] == "user" else f"{prefix} {msg['content']}")
-        if msg.get("data") is not None:
-            st.dataframe(msg["data"], use_container_width=True)
-        st.divider()
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
