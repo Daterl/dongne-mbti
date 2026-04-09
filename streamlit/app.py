@@ -272,70 +272,86 @@ with tab1:
         )
 
 # ════════════════════════════════════════════════════════════════════════════
-# 탭 2: 자연어 동네 찾기 (Cortex Agent — Search + Analyst 오케스트레이션)
+# 탭 2: 자연어 동네 찾기 (Cortex Search + AI_COMPLETE)
 # ════════════════════════════════════════════════════════════════════════════
 import _snowflake
 import json as _json
 
-def _run_agent(history: list) -> str:
-    """Cortex Agent REST 호출 → 텍스트 응답 추출."""
+
+def _cortex_search(query: str) -> list:
+    """Cortex Search REST 호출 → 동네 프로필 리스트 반환. 실패 시 SQL ILIKE 폴백."""
     try:
         resp = _snowflake.send_snow_api_request(
             "POST",
-            "/api/v2/cortex/agent:run",
-            {},
-            {},
+            "/api/v2/databases/DONGNE_MBTI/schemas/PUBLIC/cortex-search-services/DONGNE_SEARCH:query",
+            {}, {},
             {
-                "agent": "DONGNE_MBTI.PUBLIC.DONGNE_AGENT",
-                "messages": history,
-                "experimental": {},
+                "query": query,
+                "columns": ["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY", "PROFILE_TEXT"],
+                "limit": 5,
             },
             None,
             30000,
         )
-        status = resp.get("status")
-        if status != 200:
-            content_preview = str(resp.get("content", ""))[:300]
-            return f"⚠️ Agent 오류 (status: {status})\n{content_preview}"
+        if resp.get("status") == 200:
+            data = _json.loads(resp.get("content", "{}"))
+            results = data.get("results", [])
+            if results:
+                return results
+    except Exception:
+        pass
 
-        content = resp.get("content", "")
-        if not content:
-            return "⚠️ 빈 응답 (content 없음)"
+    # SQL ILIKE 폴백 (Cortex Search 실패 시)
+    try:
+        kw = query.replace("'", "''")
+        rows = session.sql(f"""
+            SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY, PROFILE_TEXT
+            FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
+            WHERE PROFILE_TEXT ILIKE '%{kw}%'
+               OR CHARACTER_SUMMARY ILIKE '%{kw}%'
+               OR MBTI ILIKE '%{kw}%'
+            LIMIT 5
+        """).to_pandas()
+        return rows.to_dict("records")
+    except Exception:
+        return []
 
-        parts = []
-        for line in content.split("\n"):
-            line = line.strip()
-            if not line.startswith("data:"):
-                continue
-            raw = line[5:].strip()
-            if not raw or raw == "[DONE]":
-                continue
-            try:
-                data = _json.loads(raw)
-                if data.get("object") == "message.delta":
-                    for item in data.get("delta", {}).get("content", []):
-                        if item.get("type") == "text":
-                            parts.append(item.get("text", ""))
-            except Exception:
-                pass
 
-        result = "".join(parts)
-        if not result:
-            # 파싱 실패 시 원본 첫 500자 반환 (디버깅용)
-            return f"⚠️ 파싱 실패. 원본 응답:\n{content[:500]}"
-        return result
+def _search_and_respond(query: str) -> tuple:
+    """Cortex Search → AI_COMPLETE 조합으로 자연어 답변 생성."""
+    results = _cortex_search(query)
+
+    if results:
+        context = "\n".join([
+            f"- {r.get('SGG','')} {r.get('EMD','')} ({r.get('MBTI','')}): {r.get('CHARACTER_SUMMARY','')}"
+            for r in results
+        ])
+    else:
+        context = "관련 동네를 찾지 못했습니다."
+
+    prompt = (
+        f"사용자 질문: {query}\n\n"
+        f"서울 3구(서초·영등포·중구) 118개 동 검색 결과:\n{context}\n\n"
+        f"위 정보를 바탕으로 한국어로 친근하고 재미있게 답변해주세요. "
+        f"동네 이름과 MBTI 유형을 반드시 포함해주세요."
+    ).replace("'", "''")
+
+    try:
+        answer = session.sql(
+            f"SELECT SNOWFLAKE.CORTEX.COMPLETE('snowflake-arctic', '{prompt}')"
+        ).collect()[0][0]
     except Exception as e:
-        return f"⚠️ 오류: {str(e)[:300]}"
+        answer = f"응답 생성 오류: {str(e)[:100]}"
+
+    return answer, results
 
 
 with tab2:
     st.markdown("### 💬 자연어로 동네 찾기")
-    st.caption("Cortex Agent (Search + Analyst) — 서초·영등포·중구 118개 동")
+    st.caption("Cortex Search + AI_COMPLETE — 서초·영등포·중구 118개 동")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
-    if "agent_history" not in st.session_state:
-        st.session_state.agent_history = []
 
     # ── 추천 질문 버튼 (대화 시작 전에만 표시) ──
     if not st.session_state.messages:
@@ -380,26 +396,16 @@ with tab2:
         with st.container():
             st.markdown(prompt)
 
-        st.session_state.agent_history.append({
-            "role": "user",
-            "content": [{"type": "text", "text": prompt}],
-        })
-
         with st.spinner("동네를 찾고 있어요..."):
-            answer_text = _run_agent(st.session_state.agent_history)
+            answer_text, _ = _search_and_respond(prompt)
         st.markdown(f"**🤖** {answer_text}")
         st.divider()
 
-        st.session_state.agent_history.append({
-            "role": "assistant",
-            "content": [{"type": "text", "text": answer_text}],
-        })
         st.session_state.messages.append({"role": "assistant", "content": answer_text})
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
             st.session_state.messages = []
-            st.session_state.agent_history = []
             st.experimental_rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
