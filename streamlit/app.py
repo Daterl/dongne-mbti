@@ -483,8 +483,15 @@ with tab3:
     if price_df.empty:
         st.info(f"📭 {t3_gu} {t3_dong}의 아파트 실거래가 데이터가 없습니다.")
     else:
-        price_df["YYYYMMDD"] = pd.to_datetime(price_df["YYYYMMDD"].astype(str))
-        price_df = price_df.sort_values("YYYYMMDD")
+        price_df["YYYYMMDD"] = pd.to_datetime(price_df["YYYYMMDD"].astype(str), errors="coerce")
+        price_df = price_df.dropna(subset=["YYYYMMDD"]).sort_values("YYYYMMDD")
+
+        # 이상값 제거 (IQR 3배 초과 → 단위 불일치 데이터 방어)
+        q1 = price_df["AVG_PRICE"].quantile(0.25)
+        q3 = price_df["AVG_PRICE"].quantile(0.75)
+        iqr = q3 - q1
+        upper_fence = q3 + 3 * iqr
+        price_df = price_df[price_df["AVG_PRICE"] <= upper_fence]
 
         # ML 예측 데이터 로드
         forecast_df = load_forecast(t3_gu, t3_dong)
