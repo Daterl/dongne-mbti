@@ -355,9 +355,9 @@ ORDER BY avg_dist_m;
 -- ========================================
 SELECT
     SGG,
-    ROUND(AVG(dk_avg_price_pyeong) / 10000, 1) AS avg_price_per_pyeong_억,
+    ROUND(AVG(dk_avg_price_pyeong) / 10000, 1) AS avg_price_per_pyeong_eok,
     ROUND(AVG(dk_price_cv), 4) AS avg_price_volatility
 FROM DONG_FEAT_DK_PRICE
 GROUP BY SGG
-ORDER BY avg_price_per_pyeong_억 DESC;
+ORDER BY avg_price_per_pyeong_eok DESC;
 -- 기대: 서초구 > 영등포구 > 중구 (아파트 시세 순)
