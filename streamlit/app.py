@@ -315,16 +315,13 @@ with tab2:
             answer_text = ""
             safe_prompt = prompt.replace("'", "''")
             try:
-                # ── Step 1: Cortex Search — SQL 직접 호출 ──
+                # ── Step 1: Cortex Search — 2-arg SQL 직접 호출 ──
                 import json
+                search_query = safe_prompt.replace('"', '\\"')
                 raw = session.sql(f"""
                     SELECT SNOWFLAKE.CORTEX.SEARCH_PREVIEW(
-                        'DONGNE_MBTI', 'PUBLIC', 'DONGNE_SEARCH',
-                        OBJECT_CONSTRUCT(
-                            'query', '{safe_prompt}',
-                            'columns', ARRAY_CONSTRUCT('SGG','EMD','MBTI','CHARACTER_SUMMARY','PROFILE_TEXT'),
-                            'limit', 5
-                        )::VARCHAR
+                        'DONGNE_MBTI.PUBLIC.DONGNE_SEARCH',
+                        '{{"query": "{search_query}", "columns": ["SGG","EMD","MBTI","CHARACTER_SUMMARY","PROFILE_TEXT"], "limit": 5}}'
                     ) AS RES
                 """).collect()[0]["RES"]
                 hits = json.loads(raw).get("results", [])
