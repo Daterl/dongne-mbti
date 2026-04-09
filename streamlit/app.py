@@ -387,7 +387,7 @@ with tab2:
         prefix = "🧑 " if msg["role"] == "user" else "🤖 "
         st.markdown(f"{prefix} **{msg['content']}**" if msg["role"] == "user" else f"{prefix} {msg['content']}")
         if msg.get("data") is not None:
-            st.dataframe(msg["data"], use_container_width=True, hide_index=True)
+            st.dataframe(msg["data"], use_container_width=True)
         st.divider()
 
     if st.session_state.messages:
