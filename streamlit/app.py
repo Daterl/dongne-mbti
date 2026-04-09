@@ -492,9 +492,25 @@ with tab3:
 
         if has_forecast:
             forecast_df["TS"] = pd.to_datetime(forecast_df["TS"])
+            # NaN 방어 처리
+            forecast_df["FORECAST_PRICE"] = pd.to_numeric(forecast_df["FORECAST_PRICE"], errors="coerce")
+            forecast_df["LOWER_BOUND"] = pd.to_numeric(forecast_df["LOWER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
+            forecast_df["UPPER_BOUND"] = pd.to_numeric(forecast_df["UPPER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
+            # 실거래 스케일과 예측 스케일 자동 맞춤 (단위 불일치 방어)
+            actual_mean = price_df["AVG_PRICE"].mean()
+            forecast_mean = forecast_df["FORECAST_PRICE"].mean()
+            if forecast_mean > 0:
+                ratio = actual_mean / forecast_mean
+                if ratio > 100 or ratio < 0.01:
+                    forecast_df["FORECAST_PRICE"] *= ratio
+                    forecast_df["LOWER_BOUND"] *= ratio
+                    forecast_df["UPPER_BOUND"] *= ratio
 
         # ── 통합 시세 차트 (실적 + ML 예측) ──
         fig3 = go.Figure()
+
+        # Y축 범위 기준 계산
+        y_max = price_df["AVG_PRICE"].max() * 1.15
 
         # 실적 데이터
         fig3.add_trace(go.Scatter(
@@ -507,10 +523,12 @@ with tab3:
         ))
 
         if has_forecast:
+            if not forecast_df["UPPER_BOUND"].isna().all():
+                y_max = max(y_max, forecast_df["UPPER_BOUND"].max() * 1.1)
             # 예측 신뢰구간 (밴드)
             fig3.add_trace(go.Scatter(
-                x=pd.concat([forecast_df["TS"], forecast_df["TS"][::-1]]),
-                y=pd.concat([forecast_df["UPPER_BOUND"], forecast_df["LOWER_BOUND"][::-1]]),
+                x=list(forecast_df["TS"]) + list(forecast_df["TS"][::-1]),
+                y=list(forecast_df["UPPER_BOUND"]) + list(forecast_df["LOWER_BOUND"][::-1]),
                 fill="toself",
                 fillcolor="rgba(231,76,60,0.15)",
                 line=dict(color="rgba(0,0,0,0)"),
@@ -528,13 +546,19 @@ with tab3:
             ))
 
         fig3.update_layout(
-            title=f"{t3_gu} {t3_dong} 아파트 매매 평당가 추이 {'+ ML 예측' if has_forecast else ''}",
             xaxis_title="월",
             yaxis_title="평당가 (만원)",
+            yaxis=dict(range=[0, y_max]),
             hovermode="x unified",
-            height=400,
-            margin=dict(t=50, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            height=420,
+            margin=dict(t=20, b=40, l=60, r=20),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.15,
+                xanchor="center",
+                x=0.5,
+            ),
         )
         st.plotly_chart(fig3, use_container_width=True)
 
