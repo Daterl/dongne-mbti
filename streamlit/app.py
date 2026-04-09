@@ -336,7 +336,7 @@ with tab2:
             col = col_a if i % 2 == 0 else col_b
             if col.button(sug, key=f"sug_{i}", use_container_width=True):
                 st.session_state["_pending"] = sug
-                st.rerun()
+                st.experimental_rerun()
 
     # ── 대화 히스토리 출력 ──
     for msg in st.session_state.messages:
@@ -385,7 +385,7 @@ with tab2:
         if st.button("대화 초기화", key="reset_chat"):
             st.session_state.messages = []
             st.session_state.agent_history = []
-            st.rerun()
+            st.experimental_rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
 # 탭 3: 이사 예보 (ML FORECAST + AI 분석)
