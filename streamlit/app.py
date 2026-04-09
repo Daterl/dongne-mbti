@@ -293,24 +293,39 @@ def _run_agent(history: list) -> str:
             None,
             30000,
         )
-        if resp.get("status") != 200:
-            return f"⚠️ Agent 오류 (status: {resp.get('status', 'unknown')})"
+        status = resp.get("status")
+        if status != 200:
+            content_preview = str(resp.get("content", ""))[:300]
+            return f"⚠️ Agent 오류 (status: {status})\n{content_preview}"
+
+        content = resp.get("content", "")
+        if not content:
+            return "⚠️ 빈 응답 (content 없음)"
 
         parts = []
-        for line in resp.get("content", "").split("\n"):
+        for line in content.split("\n"):
+            line = line.strip()
             if not line.startswith("data:"):
                 continue
+            raw = line[5:].strip()
+            if not raw or raw == "[DONE]":
+                continue
             try:
-                data = _json.loads(line[5:].strip())
+                data = _json.loads(raw)
                 if data.get("object") == "message.delta":
                     for item in data.get("delta", {}).get("content", []):
                         if item.get("type") == "text":
                             parts.append(item.get("text", ""))
             except Exception:
                 pass
-        return "".join(parts) or "응답을 받지 못했습니다."
+
+        result = "".join(parts)
+        if not result:
+            # 파싱 실패 시 원본 첫 500자 반환 (디버깅용)
+            return f"⚠️ 파싱 실패. 원본 응답:\n{content[:500]}"
+        return result
     except Exception as e:
-        return f"⚠️ 오류: {str(e)[:200]}"
+        return f"⚠️ 오류: {str(e)[:300]}"
 
 
 with tab2:
