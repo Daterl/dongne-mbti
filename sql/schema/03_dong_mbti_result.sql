@@ -11,7 +11,7 @@
 -- ============================================================
 -- ⚠️ S/N 축 피처 4개: practical_ratio(+S), edu_ratio(+S), culture_ratio(-S), avg_subway_distance_m(+S)
 -- ⚠️ T/F 축 피처 4개: avg_income(+T), avg_asset(+T), tf_price(+T), dk_jeonse_ratio(-T, 낮을수록 T)
--- ⚠️ J/P 축: price_cv → COALESCE(dk_price_cv, price_cv) (DataKnows 우선)
+-- ⚠️ J/P 축 피처 3개: jp_price_cv(+P), young_ratio(+P), avg_station_ridership(+P: 高승하차=유동상권=P)
 -- ============================================================
 
 USE SCHEMA DONGNE_MBTI.PUBLIC;
@@ -43,7 +43,8 @@ features AS (
         COALESCE(dk.dk_price_cv,
                  jp.price_cv)               AS jp_price_cv, -- DataKnows 우선, RICHGO 폴백
         jp.young_ratio,
-        dk.dk_jeonse_ratio                  AS tf_jeonse_ratio  -- T/F 4번째: 낮을수록 T(고가 매매시장)
+        dk.dk_jeonse_ratio                  AS tf_jeonse_ratio,  -- T/F 4번째: 낮을수록 T(고가 매매시장)
+        sb.avg_station_ridership            AS jp_ridership       -- J/P 3번째: 높을수록 P(동적/유동 상권)
     FROM DONG_FEAT_EI ei
     JOIN DONG_FEAT_SN sn ON ei.DISTRICT_CODE = sn.DISTRICT_CODE
     JOIN DONG_FEAT_TF tf ON ei.DISTRICT_CODE = tf.DISTRICT_CODE
@@ -71,7 +72,8 @@ stats AS (
         AVG(tf_jeonse_ratio) AS m_jr, STDDEV(tf_jeonse_ratio) AS s_jr,
         -- J/P
         AVG(jp_price_cv) AS m_pcv, STDDEV(jp_price_cv) AS s_pcv,
-        AVG(young_ratio) AS m_yr, STDDEV(young_ratio) AS s_yr
+        AVG(young_ratio) AS m_yr, STDDEV(young_ratio) AS s_yr,
+        AVG(jp_ridership) AS m_rd, STDDEV(jp_ridership) AS s_rd
     FROM features
 ),
 
@@ -111,11 +113,12 @@ scored AS (
         ) / 4, 4) AS tf_score,
 
         -- J/P 점수: 양수 = P(변화/유동), 음수 = J(안정/정착)
-        -- DataKnows AI 변동성 우선 사용 (RICHGO 폴백)
+        -- 3피처: AI변동성(+P), 청년비율(+P), 지하철승하차량(+P: 유동인구 많은 상권 = P)
         ROUND((
-            (f.jp_price_cv - s.m_pcv) / NULLIF(s.s_pcv, 0) +
-            (f.young_ratio - s.m_yr)  / NULLIF(s.s_yr, 0)
-        ) / 2, 4) AS jp_score
+            (f.jp_price_cv   - s.m_pcv) / NULLIF(s.s_pcv, 0) +
+            (f.young_ratio   - s.m_yr)  / NULLIF(s.s_yr, 0)  +
+            (f.jp_ridership  - s.m_rd)  / NULLIF(s.s_rd, 0)
+        ) / 3, 4) AS jp_score
 
     FROM features f
     CROSS JOIN stats s
