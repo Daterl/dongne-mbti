@@ -36,8 +36,9 @@ pop_agg AS (
         ROUND(SUM(fp.VISITING_POPULATION) /
             NULLIF(SUM(fp.RESIDENTIAL_POPULATION), 0), 4) AS visit_ratio,
         -- 주말 활동 비율: 주말 유동인구 비중 높을수록 E
+        -- ⚠️ 실제 WEEKDAY_WEEKEND 값은 'H'(휴일/주말) — 'WEEKEND','주말' 아님
         ROUND(
-            SUM(CASE WHEN fp.WEEKDAY_WEEKEND IN ('WEEKEND', '주말')
+            SUM(CASE WHEN fp.WEEKDAY_WEEKEND = 'H'
                 THEN fp.VISITING_POPULATION + fp.WORKING_POPULATION + fp.RESIDENTIAL_POPULATION
                 ELSE 0 END) /
             NULLIF(SUM(fp.VISITING_POPULATION + fp.WORKING_POPULATION + fp.RESIDENTIAL_POPULATION), 0)
