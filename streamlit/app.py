@@ -335,30 +335,55 @@ def _cortex_search(query: str) -> list:
 
 
 def _search_and_respond(query: str) -> tuple:
-    """Cortex Search → AI_COMPLETE 조합으로 자연어 답변 생성."""
+    """Cortex Search → AI_COMPLETE(mistral-large2) 조합으로 자연어 답변 생성."""
     results = _cortex_search(query)
 
     if results:
         context = "\n".join([
-            f"- {r.get('SGG','')} {r.get('EMD','')} ({r.get('MBTI','')}): {r.get('CHARACTER_SUMMARY','')}"
+            f"- {r.get('SGG','')} {r.get('EMD','')}동 (MBTI: {r.get('MBTI','')}): {r.get('CHARACTER_SUMMARY','')}"
             for r in results
         ])
+        no_data = False
     else:
-        context = "관련 동네를 찾지 못했습니다."
+        context = "검색 결과 없음"
+        no_data = True
 
-    prompt = (
-        f"사용자 질문: {query}\n\n"
-        f"서울 3구(서초·영등포·중구) 118개 동 검색 결과:\n{context}\n\n"
-        f"위 정보를 바탕으로 한국어로 친근하고 재미있게 답변해주세요. "
-        f"동네 이름과 MBTI 유형을 반드시 포함해주세요."
-    ).replace("'", "''")
+    system_msg = "당신은 서울 동네 MBTI 전문가입니다. 주어진 데이터만 기반으로 답변하고, 데이터에 없는 내용은 지어내지 마세요."
+    user_msg = (
+        f"질문: {query}\n\n"
+        + (
+            f"검색된 동네 데이터:\n{context}\n\n"
+            "위 동네들의 특성을 바탕으로 3문장 이내로 친근하게 답변해주세요. "
+            "동네 이름과 MBTI를 반드시 언급하세요."
+            if not no_data else
+            "서초구·영등포구·중구 데이터에서 관련 동네를 찾지 못했습니다. "
+            "솔직하게 찾지 못했다고 안내하고 다른 질문을 유도해주세요."
+        )
+    )
+
+    # SQL 인젝션 방지
+    system_msg = system_msg.replace("'", "\\'")
+    user_msg = user_msg.replace("'", "\\'")
 
     try:
-        answer = session.sql(
-            f"SELECT SNOWFLAKE.CORTEX.COMPLETE('snowflake-arctic', '{prompt}')"
-        ).collect()[0][0]
+        answer = session.sql(f"""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'mistral-large2',
+                ARRAY_CONSTRUCT(
+                    OBJECT_CONSTRUCT('role', 'system', 'content', '{system_msg}'),
+                    OBJECT_CONSTRUCT('role', 'user',   'content', '{user_msg}')
+                )
+            )
+        """).collect()[0][0]
     except Exception as e:
-        answer = f"응답 생성 오류: {str(e)[:100]}"
+        # mistral 실패 시 arctic으로 폴백
+        try:
+            fallback_prompt = f"{system_msg}\n\n{user_msg}".replace("'", "''")
+            answer = session.sql(
+                f"SELECT SNOWFLAKE.CORTEX.COMPLETE('snowflake-arctic', '{fallback_prompt}')"
+            ).collect()[0][0]
+        except Exception as e2:
+            answer = f"응답 생성 오류: {str(e2)[:100]}"
 
     return answer, results
 
