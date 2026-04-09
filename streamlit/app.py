@@ -281,118 +281,114 @@ with tab2:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # ── 추천 질문 버튼 (대화 시작 전에만 표시) ──
-    if not st.session_state.messages:
-        SUGGESTIONS = [
-            "조용하고 안정적인 동네 어디야?",
-            "젊고 활발한 분위기 동네 추천해줘",
-            "서초구에서 부유한 동네 알려줘",
-            "반포동이랑 비슷한 동네 찾아줘",
-        ]
-        st.markdown("**빠른 질문:**")
-        col_a, col_b = st.columns(2)
-        for i, sug in enumerate(SUGGESTIONS):
-            col = col_a if i % 2 == 0 else col_b
-            if col.button(sug, key=f"sug_{i}", use_container_width=True):
-                st.session_state["_pending"] = sug
-                st.rerun()
+    # ── 추천 질문 버튼 ──
+    SUGGESTIONS = [
+        "조용하고 안정적인 동네 어디야?",
+        "젊고 활발한 분위기 동네 추천해줘",
+        "서초구에서 부유한 동네 알려줘",
+        "반포동이랑 비슷한 동네 찾아줘",
+    ]
+    st.markdown("**빠른 질문:**")
+    col_a, col_b = st.columns(2)
+    for i, sug in enumerate(SUGGESTIONS):
+        col = col_a if i % 2 == 0 else col_b
+        if col.button(sug, key=f"sug_{i}", use_container_width=True):
+            st.session_state["_pending"] = sug
 
-    # ── 대화 히스토리 출력 ──
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg.get("data") is not None:
-                st.dataframe(msg["data"], use_container_width=True, hide_index=True)
+    # ── 텍스트 입력 (st.chat_input 대신 text_input 사용) ──
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_input(
+            "질문 입력",
+            placeholder="예: 서초구에서 조용하고 부유한 동네 추천해줘",
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button("검색", use_container_width=True)
 
-    # ── 입력 (버튼 또는 채팅 입력) ──
     prompt = st.session_state.pop("_pending", None)
-    if chat_in := st.chat_input("예: 서초구에서 조용하고 부유한 동네 추천해줘"):
-        prompt = chat_in
+    if submitted and user_input:
+        prompt = user_input
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        with st.spinner("동네를 찾고 있어요..."):
+            result_data = None
+            answer_text = ""
+            try:
+                # ── Step 1: Cortex Search — 시맨틱 동네 검색 ──
+                from snowflake.core import Root
+                root = Root(session)
+                svc = (
+                    root.databases["DONGNE_MBTI"]
+                    .schemas["PUBLIC"]
+                    .cortex_search_services["DONGNE_SEARCH"]
+                )
+                resp = svc.search(
+                    query=prompt,
+                    columns=["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY", "PROFILE_TEXT"],
+                    limit=5,
+                )
+                hits = resp.results
 
-        with st.chat_message("assistant"):
-            with st.spinner("동네를 찾고 있어요..."):
-                result_data = None
-                answer_text = ""
+                if hits:
+                    context_lines = "\n".join(
+                        f"- {h['SGG']} {h['EMD']} ({h['MBTI']}): {h['CHARACTER_SUMMARY']}"
+                        for h in hits
+                    )
+                    safe_context = context_lines.replace("'", "''").replace("\n", "\\n")
+                    safe_prompt = prompt.replace("'", "''")
+
+                    # ── Step 2: CORTEX.COMPLETE — 검색 결과 기반 AI 응답 ──
+                    answer_text = session.sql(f"""
+                        SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                            'mistral-large2',
+                            ARRAY_CONSTRUCT(
+                                OBJECT_CONSTRUCT('role', 'system', 'content',
+                                    '당신은 서울 동네 MBTI 전문가입니다. 아래 검색된 동네들을 참고해 사용자 질문에 친근하고 재미있게 답하세요. 동네 이름과 MBTI 유형을 반드시 언급하세요.\\n\\n검색된 동네:\\n{safe_context}'),
+                                OBJECT_CONSTRUCT('role', 'user', 'content', '{safe_prompt}')
+                            )
+                        ) AS ANSWER
+                    """).collect()[0]["ANSWER"]
+
+                    result_data = pd.DataFrame([
+                        {
+                            "구": h["SGG"], "동": h["EMD"],
+                            "MBTI": h["MBTI"], "한줄 요약": h["CHARACTER_SUMMARY"],
+                        }
+                        for h in hits
+                    ])
+                else:
+                    answer_text = "관련 동네를 찾지 못했어요. 다른 키워드로 다시 물어봐 주세요."
+
+            except Exception:
+                # ── Fallback: 직접 SQL 검색 ──
                 try:
-                    # ── Step 1: Cortex Search — 시맨틱 동네 검색 ──
-                    from snowflake.core import Root
-                    root = Root(session)
-                    svc = (
-                        root.databases["DONGNE_MBTI"]
-                        .schemas["PUBLIC"]
-                        .cortex_search_services["DONGNE_SEARCH"]
+                    safe_p = prompt.replace("'", "''")
+                    fallback_df = session.sql(f"""
+                        SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY
+                        FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
+                        ORDER BY TF_SCORE DESC
+                        LIMIT 5
+                    """).to_pandas()
+                    answer_text = "_(AI 검색 대신 인기 동네를 보여드립니다)_"
+                    result_data = fallback_df.rename(
+                        columns={"SGG": "구", "EMD": "동", "CHARACTER_SUMMARY": "한줄 요약"}
                     )
-                    resp = svc.search(
-                        query=prompt,
-                        columns=["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY", "PROFILE_TEXT"],
-                        limit=5,
-                    )
-                    hits = resp.results
-
-                    if hits:
-                        context_lines = "\n".join(
-                            f"- {h['SGG']} {h['EMD']} ({h['MBTI']}): {h['CHARACTER_SUMMARY']}"
-                            for h in hits
-                        )
-                        safe_context = context_lines.replace("'", "''").replace("\n", "\\n")
-                        safe_prompt = prompt.replace("'", "''")
-
-                        # ── Step 2: CORTEX.COMPLETE — 검색 결과 기반 AI 응답 ──
-                        answer_text = session.sql(f"""
-                            SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                                'mistral-large2',
-                                ARRAY_CONSTRUCT(
-                                    OBJECT_CONSTRUCT('role', 'system', 'content',
-                                        '당신은 서울 동네 MBTI 전문가입니다. 아래 검색된 동네들을 참고해 사용자 질문에 친근하고 재미있게 답하세요. 동네 이름과 MBTI 유형을 반드시 언급하세요.\\n\\n검색된 동네:\\n{safe_context}'),
-                                    OBJECT_CONSTRUCT('role', 'user', 'content', '{safe_prompt}')
-                                )
-                            ) AS ANSWER
-                        """).collect()[0]["ANSWER"]
-
-                        result_data = pd.DataFrame([
-                            {
-                                "구": h["SGG"], "동": h["EMD"],
-                                "MBTI": h["MBTI"], "한줄 요약": h["CHARACTER_SUMMARY"],
-                            }
-                            for h in hits
-                        ])
-                    else:
-                        answer_text = "관련 동네를 찾지 못했어요. 다른 키워드로 다시 물어봐 주세요."
-
-                except Exception as search_err:
-                    # ── Fallback: 직접 SQL 검색 ──
-                    try:
-                        safe_p = prompt.replace("'", "''")
-                        fallback_df = session.sql(f"""
-                            SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY,
-                                   EI_SCORE, TF_SCORE, JP_SCORE
-                            FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
-                            WHERE PROFILE_TEXT ILIKE '%{safe_p[:20]}%'
-                               OR CHARACTER_SUMMARY ILIKE '%{safe_p[:10]}%'
-                            ORDER BY TF_SCORE DESC
-                            LIMIT 5
-                        """).to_pandas()
-                        answer_text = "_(Cortex Search 대신 직접 검색을 사용했습니다)_"
-                        result_data = fallback_df[["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY"]].rename(
-                            columns={"SGG": "구", "EMD": "동", "CHARACTER_SUMMARY": "한줄 요약"}
-                        )
-                    except Exception as fb_err:
-                        answer_text = f"⚠️ 오류가 발생했습니다: {str(fb_err)[:100]}"
-
-                st.markdown(answer_text)
-                if result_data is not None and not result_data.empty:
-                    st.dataframe(result_data, use_container_width=True, hide_index=True)
+                except Exception as fb_err:
+                    answer_text = f"⚠️ 오류가 발생했습니다: {str(fb_err)[:100]}"
 
         st.session_state.messages.append({
             "role": "assistant",
             "content": answer_text,
             "data": result_data,
         })
+
+    # ── 대화 히스토리 출력 ──
+    for msg in reversed(st.session_state.messages):
+        prefix = "🧑 " if msg["role"] == "user" else "🤖 "
+        st.markdown(f"{prefix} **{msg['content']}**" if msg["role"] == "user" else f"{prefix} {msg['content']}")
+        if msg.get("data") is not None:
+            st.dataframe(msg["data"], use_container_width=True, hide_index=True)
+        st.divider()
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
