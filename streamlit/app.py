@@ -276,6 +276,23 @@ with tab1:
 # ════════════════════════════════════════════════════════════════════════════
 import _snowflake
 import json as _json
+import re as _re
+
+_SUPPORTED_SGG = {"서초구", "영등포구", "중구"}
+
+
+def _check_unsupported_district(query: str):
+    """지원 범위 외 구 언급 감지 → 안내 메시지 반환, 없으면 None."""
+    found = _re.findall(r'\S+구', query)
+    unsupported = [s for s in found if s not in _SUPPORTED_SGG]
+    if unsupported:
+        names = "·".join(unsupported)
+        return (
+            f"죄송해요! **{names}**는 현재 서비스 범위에 없어요. "
+            f"동네 MBTI는 **서초구·영등포구·중구** 3개 구만 지원합니다. "
+            f"이 중 하나로 다시 질문해 주세요! 😊"
+        )
+    return None
 
 
 def _cortex_search(query: str) -> list:
@@ -375,27 +392,31 @@ with tab2:
         st.markdown(f"**{icon}** {msg['content']}")
         st.divider()
 
-    # ── 채팅 입력 (st.chat_input 미지원 SiS 버전 호환) ──
+    # ── 채팅 입력 (Enter 전송 + 전송 후 자동 비우기) ──
     prompt = st.session_state.pop("_pending", None)
-    col_input, col_btn = st.columns([5, 1])
-    with col_input:
-        text_in = st.text_input(
-            "질문 입력",
-            placeholder="예: 서초구에서 조용하고 부유한 동네 추천해줘",
-            label_visibility="collapsed",
-            key="chat_text_input",
-        )
-    with col_btn:
-        send = st.button("전송", use_container_width=True)
+    with st.form(key="chat_form", clear_on_submit=True):
+        col_input, col_btn = st.columns([5, 1])
+        with col_input:
+            text_in = st.text_input(
+                "질문 입력",
+                placeholder="예: 서초구에서 조용하고 부유한 동네 추천해줘",
+                label_visibility="collapsed",
+            )
+        with col_btn:
+            send = st.form_submit_button("전송", use_container_width=True)
 
     if send and text_in:
         prompt = text_in
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.spinner("동네를 찾고 있어요..."):
-            answer_text, _ = _search_and_respond(prompt)
-        st.session_state.messages.append({"role": "assistant", "content": answer_text})
+        unsupported = _check_unsupported_district(prompt)
+        if unsupported:
+            st.session_state.messages.append({"role": "assistant", "content": unsupported})
+        else:
+            with st.spinner("동네를 찾고 있어요..."):
+                answer_text, _ = _search_and_respond(prompt)
+            st.session_state.messages.append({"role": "assistant", "content": answer_text})
         st.experimental_rerun()
 
     if st.session_state.messages:
