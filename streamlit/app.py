@@ -393,10 +393,26 @@ with tab2:
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
-# 탭 3: 이사 예보
+# 탭 3: 이사 예보 (ML FORECAST + AI 분석)
 # ════════════════════════════════════════════════════════════════════════════
+
+@st.cache_data(ttl=3600)
+def load_forecast(sgg: str, emd: str):
+    """PRICE_FORECAST_RESULT에서 ML 예측값 로드 (Issue #16)."""
+    dong_id = f"{sgg}_{emd}"
+    try:
+        return session.sql(f"""
+            SELECT TS, FORECAST AS FORECAST_PRICE,
+                   LOWER_BOUND, UPPER_BOUND
+            FROM DONGNE_MBTI.PUBLIC.PRICE_FORECAST_RESULT
+            WHERE SERIES = '{dong_id}'
+            ORDER BY TS
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
 with tab3:
-    st.markdown("### 📊 이사 예보 — 시세 트렌드 & AI 전망")
+    st.markdown("### 📊 이사 예보 — 시세 트렌드 & ML 예측")
 
     col_t1, col_t2 = st.columns([1, 2])
     with col_t1:
@@ -413,51 +429,91 @@ with tab3:
         price_df["YYYYMMDD"] = pd.to_datetime(price_df["YYYYMMDD"].astype(str))
         price_df = price_df.sort_values("YYYYMMDD")
 
-        # 시세 트렌드 차트
+        # ML 예측 데이터 로드
+        forecast_df = load_forecast(t3_gu, t3_dong)
+        has_forecast = not forecast_df.empty
+
+        if has_forecast:
+            forecast_df["TS"] = pd.to_datetime(forecast_df["TS"])
+
+        # ── 통합 시세 차트 (실적 + ML 예측) ──
         fig3 = go.Figure()
+
+        # 실적 데이터
         fig3.add_trace(go.Scatter(
             x=price_df["YYYYMMDD"],
             y=price_df["AVG_PRICE"],
             mode="lines+markers",
             line=dict(color="#2874A6", width=2),
             marker=dict(size=4),
-            name="매매 평당가",
+            name="실거래 평당가",
         ))
+
+        if has_forecast:
+            # 예측 신뢰구간 (밴드)
+            fig3.add_trace(go.Scatter(
+                x=pd.concat([forecast_df["TS"], forecast_df["TS"][::-1]]),
+                y=pd.concat([forecast_df["UPPER_BOUND"], forecast_df["LOWER_BOUND"][::-1]]),
+                fill="toself",
+                fillcolor="rgba(231,76,60,0.15)",
+                line=dict(color="rgba(0,0,0,0)"),
+                name="예측 범위 (90%)",
+                hoverinfo="skip",
+            ))
+            # 예측 중앙값
+            fig3.add_trace(go.Scatter(
+                x=forecast_df["TS"],
+                y=forecast_df["FORECAST_PRICE"],
+                mode="lines+markers",
+                line=dict(color="#E74C3C", width=2, dash="dash"),
+                marker=dict(size=6, symbol="diamond"),
+                name="ML 예측",
+            ))
+
         fig3.update_layout(
-            title=f"{t3_gu} {t3_dong} 아파트 매매 평당가 추이",
+            title=f"{t3_gu} {t3_dong} 아파트 매매 평당가 추이 {'+ ML 예측' if has_forecast else ''}",
             xaxis_title="월",
             yaxis_title="평당가 (만원)",
             hovermode="x unified",
-            height=380,
+            height=400,
             margin=dict(t=50, b=40),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
         )
         st.plotly_chart(fig3, use_container_width=True)
 
-        # 최근 변화 메트릭
+        # ── 메트릭 ──
         if len(price_df) >= 2:
             latest = price_df.iloc[-1]["AVG_PRICE"]
             prev = price_df.iloc[-2]["AVG_PRICE"]
             delta = latest - prev
-            m1, m2, m3 = st.columns(3)
+            m1, m2, m3, m4 = st.columns(4)
             m1.metric("최근 평당가", f"{latest:,.0f}만원", f"{delta:+,.0f}만원")
             m2.metric("기간", f"{price_df['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_df['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}")
-            m3.metric("데이터 포인트", f"{len(price_df)}개월")
+            m3.metric("데이터", f"{len(price_df)}개월")
+            if has_forecast:
+                pred_latest = forecast_df.iloc[-1]["FORECAST_PRICE"]
+                pred_delta = pred_latest - latest
+                m4.metric("3개월 후 예측", f"{pred_latest:,.0f}만원", f"{pred_delta:+,.0f}만원")
 
-        # AI 이사 전망
+        # ── AI 이사 전망 ──
         st.divider()
         if st.button("🤖 AI 이사 전망 생성", key="forecast_btn"):
             with st.spinner("AI가 시세를 분석하고 있어요..."):
                 try:
                     recent_prices = price_df.tail(6)["AVG_PRICE"].tolist()
-                    forecast_prompt = f"""
-                    {t3_gu} {t3_dong} 최근 6개월 아파트 매매 평당가: {recent_prices}만원
-                    이 데이터를 바탕으로 향후 이사 타이밍에 대한 짧고 솔직한 전망을 2-3문장으로 알려줘.
-                    숫자보다는 트렌드 방향과 이사 적합성을 판단해줘.
-                    """
+                    ml_info = ""
+                    if has_forecast:
+                        pred_vals = forecast_df["FORECAST_PRICE"].tolist()
+                        ml_info = f" ML 예측 향후 {len(pred_vals)}개월: {[round(v) for v in pred_vals]}만원."
+                    forecast_prompt = (
+                        f"{t3_gu} {t3_dong} 최근 6개월 아파트 매매 평당가: {[round(p) for p in recent_prices]}만원."
+                        f"{ml_info} 이 데이터를 바탕으로 향후 이사 타이밍에 대한 짧고 솔직한 전망을 2-3문장으로 알려줘. "
+                        f"트렌드 방향과 이사 적합성을 판단해줘."
+                    )
                     forecast = session.sql(f"""
                         SELECT SNOWFLAKE.CORTEX.COMPLETE(
                             'mistral-large2',
-                            '{forecast_prompt.strip().replace("'", "''")}'
+                            '{forecast_prompt.replace("'", "''")}'
                         ) AS FORECAST
                     """).collect()[0]["FORECAST"]
 
