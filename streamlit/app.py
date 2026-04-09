@@ -272,14 +272,55 @@ with tab1:
         )
 
 # ════════════════════════════════════════════════════════════════════════════
-# 탭 2: 자연어 동네 찾기 (Cortex Search + Cortex Complete)
+# 탭 2: 자연어 동네 찾기 (Cortex Agent — Search + Analyst 오케스트레이션)
 # ════════════════════════════════════════════════════════════════════════════
+import _snowflake
+import json as _json
+
+def _run_agent(history: list) -> str:
+    """Cortex Agent REST 호출 → 텍스트 응답 추출."""
+    try:
+        resp = _snowflake.send_snow_api_request(
+            "POST",
+            "/api/v2/cortex/agent:run",
+            {},
+            {},
+            {
+                "agent": "DONGNE_MBTI.PUBLIC.DONGNE_AGENT",
+                "messages": history,
+                "experimental": {},
+            },
+            None,
+            30000,
+        )
+        if resp.get("status") != 200:
+            return f"⚠️ Agent 오류 (status: {resp.get('status', 'unknown')})"
+
+        parts = []
+        for line in resp.get("content", "").split("\n"):
+            if not line.startswith("data:"):
+                continue
+            try:
+                data = _json.loads(line[5:].strip())
+                if data.get("object") == "message.delta":
+                    for item in data.get("delta", {}).get("content", []):
+                        if item.get("type") == "text":
+                            parts.append(item.get("text", ""))
+            except Exception:
+                pass
+        return "".join(parts) or "응답을 받지 못했습니다."
+    except Exception as e:
+        return f"⚠️ 오류: {str(e)[:200]}"
+
+
 with tab2:
     st.markdown("### 💬 자연어로 동네 찾기")
-    st.caption("Cortex Search × AI 분석 — 서초·영등포·중구 118개 동")
+    st.caption("Cortex Agent (Search + Analyst) — 서초·영등포·중구 118개 동")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "agent_history" not in st.session_state:
+        st.session_state.agent_history = []
 
     # ── 추천 질문 버튼 (대화 시작 전에만 표시) ──
     if not st.session_state.messages:
@@ -299,81 +340,51 @@ with tab2:
 
     # ── 대화 히스토리 출력 ──
     for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg.get("data") is not None:
-                st.dataframe(msg["data"], use_container_width=True, hide_index=True)
+        icon = "🧑" if msg["role"] == "user" else "🤖"
+        st.markdown(f"**{icon}** {msg['content']}")
+        st.divider()
 
-    # ── 채팅 입력 ──
+    # ── 채팅 입력 (st.chat_input 미지원 SiS 버전 호환) ──
     prompt = st.session_state.pop("_pending", None)
-    if chat_in := st.chat_input("예: 서초구에서 조용하고 부유한 동네 추천해줘"):
-        prompt = chat_in
+    col_input, col_btn = st.columns([5, 1])
+    with col_input:
+        text_in = st.text_input(
+            "질문 입력",
+            placeholder="예: 서초구에서 조용하고 부유한 동네 추천해줘",
+            label_visibility="collapsed",
+            key="chat_text_input",
+        )
+    with col_btn:
+        send = st.button("전송", use_container_width=True)
+
+    if send and text_in:
+        prompt = text_in
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
+        with st.container():
             st.markdown(prompt)
 
-        with st.chat_message("assistant"):
-            with st.spinner("동네를 찾고 있어요..."):
-                result_data = None
-                answer_text = ""
-                safe_prompt = prompt.replace("'", "''")
-
-                # ── Step 1: 키워드+MBTI축 기반 SQL로 후보 동네 추출 ──
-                try:
-                    cand_df = session.sql(f"""
-                        SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY, PROFILE_TEXT,
-                               EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
-                        FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
-                        ORDER BY (
-                            CASE WHEN PROFILE_TEXT ILIKE '%{safe_prompt[:15]}%' THEN 3 ELSE 0 END +
-                            CASE WHEN CHARACTER_SUMMARY ILIKE '%{safe_prompt[:10]}%' THEN 2 ELSE 0 END +
-                            CASE WHEN '{safe_prompt}' ILIKE '%조용%' AND EI_SCORE < 0 THEN 2 ELSE 0 END +
-                            CASE WHEN '{safe_prompt}' ILIKE '%활발%' AND EI_SCORE > 0 THEN 2 ELSE 0 END +
-                            CASE WHEN '{safe_prompt}' ILIKE '%부유%' AND TF_SCORE > 0 THEN 2 ELSE 0 END +
-                            CASE WHEN '{safe_prompt}' ILIKE '%서민%' AND TF_SCORE < 0 THEN 2 ELSE 0 END +
-                            CASE WHEN '{safe_prompt}' ILIKE '%젊%' AND JP_SCORE > 0 THEN 2 ELSE 0 END +
-                            CASE WHEN '{safe_prompt}' ILIKE '%안정%' AND JP_SCORE < 0 THEN 2 ELSE 0 END
-                        ) DESC, ABS(TF_SCORE) + ABS(EI_SCORE) DESC
-                        LIMIT 5
-                    """).to_pandas()
-
-                    ctx = " | ".join(
-                        f"{r['SGG']} {r['EMD']}({r['MBTI']}): {r['CHARACTER_SUMMARY']}"
-                        for _, r in cand_df.iterrows()
-                    ).replace("'", "''")
-
-                    # ── Step 2: CORTEX.COMPLETE ──
-                    full_prompt = (
-                        f"당신은 서울 동네 MBTI 전문가입니다. "
-                        f"다음 동네들을 참고해서 질문에 친근하게 답해주세요. "
-                        f"동네 이름과 MBTI를 반드시 언급하세요. "
-                        f"참고 동네: {ctx}. 질문: {safe_prompt}"
-                    )
-                    answer_text = session.sql(f"""
-                        SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large2', '{full_prompt}') AS ANSWER
-                    """).collect()[0]["ANSWER"]
-
-                    result_data = cand_df[["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY"]].rename(
-                        columns={"SGG": "구", "EMD": "동", "CHARACTER_SUMMARY": "한줄 요약"}
-                    )
-                except Exception as e:
-                    answer_text = f"⚠️ 오류: {str(e)[:150]}"
-
-                st.markdown(answer_text)
-                if result_data is not None and not result_data.empty:
-                    st.dataframe(result_data, use_container_width=True, hide_index=True)
-
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer_text,
-            "data": result_data,
+        st.session_state.agent_history.append({
+            "role": "user",
+            "content": [{"type": "text", "text": prompt}],
         })
+
+        with st.spinner("동네를 찾고 있어요..."):
+            answer_text = _run_agent(st.session_state.agent_history)
+        st.markdown(f"**🤖** {answer_text}")
+        st.divider()
+
+        st.session_state.agent_history.append({
+            "role": "assistant",
+            "content": [{"type": "text", "text": answer_text}],
+        })
+        st.session_state.messages.append({"role": "assistant", "content": answer_text})
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
             st.session_state.messages = []
+            st.session_state.agent_history = []
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -496,7 +507,7 @@ with tab3:
                     )
                     forecast = session.sql(f"""
                         SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                            'mistral-large2',
+                            'auto',
                             '{forecast_prompt.replace("'", "''")}'
                         ) AS FORECAST
                     """).collect()[0]["FORECAST"]

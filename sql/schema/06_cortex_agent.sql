@@ -41,7 +41,7 @@ FROM SPECIFICATION $$
       "execution_environment": {
         "query_timeout": 120,
         "type": "warehouse",
-        "warehouse": ""
+        "warehouse": "COMPUTE_WH"
       },
       "search_service": "DONGNE_MBTI.PUBLIC.DONGNE_SEARCH"
     },
@@ -49,7 +49,7 @@ FROM SPECIFICATION $$
       "execution_environment": {
         "query_timeout": 120,
         "type": "warehouse",
-        "warehouse": ""
+        "warehouse": "COMPUTE_WH"
       },
       "semantic_model_file": "@DONGNE_MBTI.PUBLIC.dongne_repo/branches/main/models/dongne_mbti.yaml"
     }
