@@ -33,6 +33,20 @@
 - SQL 실행 전 reviewer 에이전트 검증 권장. Why: JOIN 조건 누락 → 카테시안 곱 → 크레딧 낭비.
 - Warehouse: `XSMALL`, `AUTO_SUSPEND=60`. Why: MEDIUM 이상은 시간당 $4~$16.
 
+## CoCo 에이전트 (`.cortex/agents/` — Cortex Code 전용)
+
+| 에이전트 | 담당 이슈 | 역할 | 스킬 |
+|---------|----------|------|------|
+| dongne-orchestrator | 전체 | 이슈 번호 라우팅 + 서브에이전트 디스패치 | — |
+| cortex-ai-builder | #7, #8, #9 | AI_CLASSIFY, AI_SENTIMENT, AI_COMPLETE 파이프라인 | `$cortex-ai-functions` |
+| semantic-agent-builder | #10, #11, #12 | Cortex Search + Semantic Model + Cortex Agent | `$semantic-view`, `$cortex-agent` |
+| streamlit-builder | #13, #14, #15, #16, #17 | SiS 3탭 앱 개발 + 배포 | `$developing-with-streamlit` |
+| data-guardian | #5(검증), #18 | 데이터 품질 + 크레딧 모니터링 + E2E 테스트 | `$data-quality`, `$cost-intelligence`, `$lineage` |
+| ml-forecaster | #16(협업) | ML 예측 (FORECAST, ANOMALY_DETECTION) | `$machine-learning` |
+| submission-preparer | #19, #20 | PPT, 데모 시나리오, ZIP 패키징 | `$pptx` |
+
+**이슈 퀵 레퍼런스**: #5→data-guardian, #6→직접, #7~#9→cortex-ai-builder, #10~#12→semantic-agent-builder, #13~#17→streamlit-builder, #18→data-guardian, #19~#20→submission-preparer
+
 ## 코드 분담
 
 - **Claude Code (무료)**: SQL/Streamlit/YAML 작성, 문서화
@@ -53,6 +67,15 @@ AI_CLASSIFY, AI_SENTIMENT, AI_COMPLETE, Cortex Search, Cortex Analyst, Cortex Ag
 ## 디렉토리 구조
 
 ```
+.cortex/
+└── agents/
+    ├── dongne-orchestrator.md
+    ├── cortex-ai-builder.md
+    ├── semantic-agent-builder.md
+    ├── streamlit-builder.md
+    ├── data-guardian.md
+    ├── ml-forecaster.md
+    └── submission-preparer.md
 .claude/
 ├── agents/
 │   ├── developer.md
@@ -83,3 +106,4 @@ AI_CLASSIFY, AI_SENTIMENT, AI_COMPLETE, Cortex Search, Cortex Analyst, Cortex Ag
 | 2026-04-08 | 초기 구성 | 전체 | 하네스 신규 구축 |
 | 2026-04-08 | Why 보강 + 100줄 이내 리팩토링 | CLAUDE.md | 감사 L2→L3 개선 |
 | 2026-04-08 | 3구 55동 피봇 반영 + 에이전트 파일 동기화 | 전체 | 25구→3구 피봇, 에이전트 정의 현행화 |
+| 2026-04-09 | CoCo 에이전트 7개 + 이슈 매핑 추가 | CLAUDE.md, .cortex/agents/ | 이슈 기반 에이전트 설계, Cortex Search 중복 해소 |
