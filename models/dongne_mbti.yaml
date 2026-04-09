@@ -1,0 +1,293 @@
+name: dongne_mbti
+description: "서울 3구(서초/영등포/중구) 118개 동의 MBTI 성격 분석 데이터. 동네별 활동성(E/I), 라이프스타일(S/N), 경제수준(T/F), 안정성(J/P) 4축 점수와 AI 생성 프로필을 포함한다."
+
+tables:
+  - name: DONG_MBTI_RESULT
+    description: "118개 동의 MBTI 분류 결과 및 4축 z-score 점수. 핵심 분석 테이블."
+    base_table:
+      database: DONGNE_MBTI
+      schema: PUBLIC
+      table: DONG_MBTI_RESULT
+    dimensions:
+      - name: sgg
+        description: "구 이름. 서초구, 영등포구, 중구 중 하나."
+        expr: SGG
+        data_type: TEXT
+        sample_values:
+          - 서초구
+          - 영등포구
+          - 중구
+      - name: emd
+        description: "동 이름 (읍면동). 예: 반포동, 여의도동, 명동1가."
+        expr: EMD
+        data_type: TEXT
+      - name: mbti
+        description: "동네 MBTI 4글자 유형. 예: ISTJ, ENFP. 총 16종."
+        expr: MBTI
+        data_type: TEXT
+        sample_values:
+          - ISTJ
+          - INTP
+          - ENTJ
+          - ISFP
+    measures:
+      - name: ei_score
+        description: "E/I 축 점수. 양수=외향적(E, 활동/방문 많음), 음수=내향적(I, 조용함)."
+        expr: EI_SCORE
+        data_type: FLOAT
+      - name: sn_score
+        description: "S/N 축 점수. 양수=실용적(S, 생필품/교육 소비), 음수=문화적(N, 카페/문화/레저)."
+        expr: SN_SCORE
+        data_type: FLOAT
+      - name: tf_score
+        description: "T/F 축 점수. 양수=경제력 높음(T, 고소득/고자산/고시세), 음수=서민적(F)."
+        expr: TF_SCORE
+        data_type: FLOAT
+      - name: jp_score
+        description: "J/P 축 점수. 양수=변화 많음(P, 청년 많음/시세 변동), 음수=안정적(J)."
+        expr: JP_SCORE
+        data_type: FLOAT
+      - name: dong_count
+        description: "동 수 (집계용)."
+        expr: COUNT(DISTINCT EMD)
+        data_type: NUMBER
+
+  - name: DONG_PROFILES
+    description: "AI_COMPLETE로 생성한 동네 성격 프로필. MBTI 결과 + 텍스트 설명 + 한 줄 요약 포함."
+    base_table:
+      database: DONGNE_MBTI
+      schema: PUBLIC
+      table: DONG_PROFILES
+    dimensions:
+      - name: sgg
+        description: "구 이름."
+        expr: SGG
+        data_type: TEXT
+      - name: emd
+        description: "동 이름."
+        expr: EMD
+        data_type: TEXT
+      - name: mbti
+        description: "동네 MBTI 유형."
+        expr: MBTI
+        data_type: TEXT
+      - name: profile_text
+        description: "AI가 생성한 동네 성격 요약 텍스트 (3-4문장). Cortex Search 인덱싱 대상."
+        expr: PROFILE_TEXT
+        data_type: TEXT
+      - name: character_summary
+        description: "동네 성격 한 줄 요약 (위트 있는 짧은 표현). 앱 카드 UI용."
+        expr: CHARACTER_SUMMARY
+        data_type: TEXT
+    measures:
+      - name: ei_score
+        description: "E/I 축 점수."
+        expr: EI_SCORE
+        data_type: FLOAT
+      - name: tf_score
+        description: "T/F 축 점수 (경제수준)."
+        expr: TF_SCORE
+        data_type: FLOAT
+
+  - name: DONG_FEAT_TF
+    description: "T/F축 경제 피처 테이블. 동별 평균 소득, 자산, 매매 평당가."
+    base_table:
+      database: DONGNE_MBTI
+      schema: PUBLIC
+      table: DONG_FEAT_TF
+    dimensions:
+      - name: sgg
+        description: "구 이름."
+        expr: SGG
+        data_type: TEXT
+      - name: emd
+        description: "동 이름."
+        expr: EMD
+        data_type: TEXT
+    measures:
+      - name: avg_income
+        description: "동별 평균 소득 (원). SPH ASSET_INCOME_INFO 기반."
+        expr: AVG_INCOME
+        data_type: FLOAT
+      - name: avg_asset
+        description: "동별 평균 자산 (원). SPH ASSET_INCOME_INFO 기반."
+        expr: AVG_ASSET
+        data_type: FLOAT
+      - name: avg_price
+        description: "동별 아파트 매매 평당가 (만원). RICHGO 기반, 동→구 폴백 적용."
+        expr: AVG_PRICE
+        data_type: FLOAT
+
+  - name: DONG_FEAT_EI
+    description: "E/I축 활동성 피처 테이블. 방문인구 비율, 주말 활동, 유흥 소비."
+    base_table:
+      database: DONGNE_MBTI
+      schema: PUBLIC
+      table: DONG_FEAT_EI
+    dimensions:
+      - name: sgg
+        description: "구 이름."
+        expr: SGG
+        data_type: TEXT
+      - name: emd
+        description: "동 이름."
+        expr: EMD
+        data_type: TEXT
+    measures:
+      - name: visit_ratio
+        description: "방문인구 / 거주인구 비율. 높을수록 외향적(E)."
+        expr: VISIT_RATIO
+        data_type: FLOAT
+      - name: weekend_ratio
+        description: "주말 유동인구 비중. 높을수록 외향적(E)."
+        expr: WEEKEND_RATIO
+        data_type: FLOAT
+
+  - name: DONG_FEAT_JP
+    description: "J/P축 안정성 피처 테이블. 시세 변동성, 청년 비율."
+    base_table:
+      database: DONGNE_MBTI
+      schema: PUBLIC
+      table: DONG_FEAT_JP
+    dimensions:
+      - name: sgg
+        description: "구 이름."
+        expr: SGG
+        data_type: TEXT
+      - name: emd
+        description: "동 이름."
+        expr: EMD
+        data_type: TEXT
+    measures:
+      - name: price_cv
+        description: "시세 변동계수(CV). 높을수록 변화 많음(P)."
+        expr: PRICE_CV
+        data_type: FLOAT
+      - name: young_ratio
+        description: "20-30대 비율. 높을수록 변화 많음(P)."
+        expr: YOUNG_RATIO
+        data_type: FLOAT
+
+relationships:
+  - name: profiles_to_result
+    left_table: DONG_PROFILES
+    right_table: DONG_MBTI_RESULT
+    join_type: LEFT
+    relationship_columns:
+      - left_column: SGG
+        right_column: SGG
+      - left_column: EMD
+        right_column: EMD
+  - name: result_to_feat_tf
+    left_table: DONG_MBTI_RESULT
+    right_table: DONG_FEAT_TF
+    join_type: LEFT
+    relationship_columns:
+      - left_column: SGG
+        right_column: SGG
+      - left_column: EMD
+        right_column: EMD
+  - name: result_to_feat_ei
+    left_table: DONG_MBTI_RESULT
+    right_table: DONG_FEAT_EI
+    join_type: LEFT
+    relationship_columns:
+      - left_column: SGG
+        right_column: SGG
+      - left_column: EMD
+        right_column: EMD
+  - name: result_to_feat_jp
+    left_table: DONG_MBTI_RESULT
+    right_table: DONG_FEAT_JP
+    join_type: LEFT
+    relationship_columns:
+      - left_column: SGG
+        right_column: SGG
+      - left_column: EMD
+        right_column: EMD
+
+verified_queries:
+  - name: mbti_by_dong
+    question: "각 동네의 MBTI 유형이 뭐야?"
+    sql: |
+      SELECT SGG, EMD, MBTI, EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
+      FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT
+      ORDER BY SGG, EMD;
+
+  - name: quiet_stable_neighborhoods
+    question: "조용하고 안정적인 동네 추천해줘"
+    sql: |
+      SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY,
+             EI_SCORE, JP_SCORE
+      FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
+      WHERE EI_SCORE < 0 AND JP_SCORE < 0
+      ORDER BY (EI_SCORE + JP_SCORE) ASC
+      LIMIT 10;
+
+  - name: wealthy_neighborhoods
+    question: "서초구에서 부유한 동네 알려줘"
+    sql: |
+      SELECT r.SGG, r.EMD, r.MBTI, f.AVG_INCOME, f.AVG_ASSET, f.AVG_PRICE,
+             p.CHARACTER_SUMMARY
+      FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT r
+      JOIN DONGNE_MBTI.PUBLIC.DONG_FEAT_TF f ON r.SGG = f.SGG AND r.EMD = f.EMD
+      JOIN DONGNE_MBTI.PUBLIC.DONG_PROFILES p ON r.SGG = p.SGG AND r.EMD = p.EMD
+      WHERE r.SGG = '서초구'
+      ORDER BY f.AVG_INCOME DESC
+      LIMIT 5;
+
+  - name: young_active_neighborhoods
+    question: "젊고 활발한 동네 어디야?"
+    sql: |
+      SELECT r.SGG, r.EMD, r.MBTI, f.YOUNG_RATIO, e.VISIT_RATIO,
+             p.CHARACTER_SUMMARY
+      FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT r
+      JOIN DONGNE_MBTI.PUBLIC.DONG_FEAT_JP f ON r.SGG = f.SGG AND r.EMD = f.EMD
+      JOIN DONGNE_MBTI.PUBLIC.DONG_FEAT_EI e ON r.SGG = e.SGG AND r.EMD = e.EMD
+      JOIN DONGNE_MBTI.PUBLIC.DONG_PROFILES p ON r.SGG = p.SGG AND r.EMD = p.EMD
+      WHERE r.EI_SCORE > 0 AND f.YOUNG_RATIO > 0.3
+      ORDER BY f.YOUNG_RATIO DESC
+      LIMIT 10;
+
+  - name: mbti_type_distribution
+    question: "MBTI 유형별로 몇 개 동네야?"
+    sql: |
+      SELECT MBTI, COUNT(*) AS dong_count,
+             ROUND(AVG(TF_SCORE), 2) AS avg_tf,
+             ROUND(AVG(EI_SCORE), 2) AS avg_ei
+      FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT
+      GROUP BY MBTI
+      ORDER BY dong_count DESC;
+
+  - name: similar_neighborhoods
+    question: "반포동이랑 비슷한 동네 어디야?"
+    sql: |
+      WITH target AS (
+        SELECT EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
+        FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT
+        WHERE EMD = '반포동'
+      )
+      SELECT r.SGG, r.EMD, r.MBTI,
+             ROUND(ABS(r.EI_SCORE - t.EI_SCORE) +
+                   ABS(r.SN_SCORE - t.SN_SCORE) +
+                   ABS(r.TF_SCORE - t.TF_SCORE) +
+                   ABS(r.JP_SCORE - t.JP_SCORE), 3) AS distance,
+             p.CHARACTER_SUMMARY
+      FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT r
+      CROSS JOIN target t
+      JOIN DONGNE_MBTI.PUBLIC.DONG_PROFILES p ON r.SGG = p.SGG AND r.EMD = p.EMD
+      WHERE r.EMD != '반포동'
+      ORDER BY distance ASC
+      LIMIT 5;
+
+  - name: gu_mbti_summary
+    question: "구별 MBTI 분포 요약해줘"
+    sql: |
+      SELECT SGG,
+             COUNT(*) AS total_dong,
+             MODE(MBTI) AS most_common_mbti,
+             ROUND(AVG(TF_SCORE), 2) AS avg_economic,
+             ROUND(AVG(EI_SCORE), 2) AS avg_activity
+      FROM DONGNE_MBTI.PUBLIC.DONG_MBTI_RESULT
+      GROUP BY SGG
+      ORDER BY SGG;
