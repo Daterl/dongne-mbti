@@ -393,15 +393,10 @@ with tab2:
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.container():
-            st.markdown(prompt)
-
         with st.spinner("동네를 찾고 있어요..."):
             answer_text, _ = _search_and_respond(prompt)
-        st.markdown(f"**🤖** {answer_text}")
-        st.divider()
-
         st.session_state.messages.append({"role": "assistant", "content": answer_text})
+        st.experimental_rerun()
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
