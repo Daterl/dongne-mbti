@@ -1,17 +1,16 @@
 -- ============================================================
 -- 03. DONG_MBTI_RESULT — 동별 MBTI 판정 테이블
--- v4: DataKnows 피처 통합 (#21)
+-- v5: T/F 축 4피처 확장 — 전세/매매 비율 추가 (16유형 전수 달성)
 --   S/N 축 ← 역세권 거리 추가 (avg_subway_distance_m)
---   T/F 축 ← DataKnows AI 시세 교체 (dk_avg_price_pyeong)
+--   T/F 축 ← AI 시세 + 전세/매매 비율(dk_jeonse_ratio, 낮을수록 T)
 --   J/P 축 ← DataKnows AI 변동성 우선 (dk_price_cv → price_cv 폴백)
 -- z-score 정규화 → 4축 점수 → MBTI 4글자 판정
 -- 의존: DONG_FEAT_EI, DONG_FEAT_SN, DONG_FEAT_TF, DONG_FEAT_JP,
 --       DONG_FEAT_SUBWAY, DONG_FEAT_DK_PRICE
 -- 크레딧: ~$0.01 (~118건 연산)
 -- ============================================================
--- ⚠️ S/N 축 피처 4개 (이전 3개):
---   practical_ratio(+S), edu_ratio(+S), culture_ratio(-S), avg_subway_distance_m(+S)
--- ⚠️ T/F 축: avg_price → dk_avg_price_pyeong (DataKnows AI 시세)
+-- ⚠️ S/N 축 피처 4개: practical_ratio(+S), edu_ratio(+S), culture_ratio(-S), avg_subway_distance_m(+S)
+-- ⚠️ T/F 축 피처 4개: avg_income(+T), avg_asset(+T), tf_price(+T), dk_jeonse_ratio(-T, 낮을수록 T)
 -- ⚠️ J/P 축: price_cv → COALESCE(dk_price_cv, price_cv) (DataKnows 우선)
 -- ============================================================
 
@@ -43,7 +42,8 @@ features AS (
         -- J/P 피처 (DataKnows AI 변동성 우선 + RICHGO 폴백 + 인구구조)
         COALESCE(dk.dk_price_cv,
                  jp.price_cv)               AS jp_price_cv, -- DataKnows 우선, RICHGO 폴백
-        jp.young_ratio
+        jp.young_ratio,
+        dk.dk_jeonse_ratio                  AS tf_jeonse_ratio  -- T/F 4번째: 낮을수록 T(고가 매매시장)
     FROM DONG_FEAT_EI ei
     JOIN DONG_FEAT_SN sn ON ei.DISTRICT_CODE = sn.DISTRICT_CODE
     JOIN DONG_FEAT_TF tf ON ei.DISTRICT_CODE = tf.DISTRICT_CODE
@@ -68,6 +68,7 @@ stats AS (
         AVG(avg_income) AS m_ai, STDDEV(avg_income) AS s_ai,
         AVG(avg_asset) AS m_aa, STDDEV(avg_asset) AS s_aa,
         AVG(tf_price) AS m_tp, STDDEV(tf_price) AS s_tp,
+        AVG(tf_jeonse_ratio) AS m_jr, STDDEV(tf_jeonse_ratio) AS s_jr,
         -- J/P
         AVG(jp_price_cv) AS m_pcv, STDDEV(jp_price_cv) AS s_pcv,
         AVG(young_ratio) AS m_yr, STDDEV(young_ratio) AS s_yr
@@ -101,12 +102,13 @@ scored AS (
         ) / 4, 4) AS sn_score,
 
         -- T/F 점수: 양수 = T(경제/부유), 음수 = F(서민/생활)
-        -- DataKnows AI 시세 사용 (기존 RICHGO avg_price 대체)
+        -- 4피처: 소득(+T), 자산(+T), AI시세(+T), 전세/매매비율(-T: 낮을수록 고가 매매 = T)
         ROUND((
-            (f.avg_income - s.m_ai) / NULLIF(s.s_ai, 0) +
-            (f.avg_asset - s.m_aa)  / NULLIF(s.s_aa, 0) +
-            (f.tf_price - s.m_tp)   / NULLIF(s.s_tp, 0)
-        ) / 3, 4) AS tf_score,
+            (f.avg_income - s.m_ai)         / NULLIF(s.s_ai, 0) +
+            (f.avg_asset - s.m_aa)          / NULLIF(s.s_aa, 0) +
+            (f.tf_price - s.m_tp)           / NULLIF(s.s_tp, 0) -
+            (f.tf_jeonse_ratio - s.m_jr)    / NULLIF(s.s_jr, 0)  -- ⚠️ 낮을수록 T → 부호 반전(-)
+        ) / 4, 4) AS tf_score,
 
         -- J/P 점수: 양수 = P(변화/유동), 음수 = J(안정/정착)
         -- DataKnows AI 변동성 우선 사용 (RICHGO 폴백)
