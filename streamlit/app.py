@@ -414,6 +414,31 @@ st.markdown("""
     text-align: center;
     border: 1px solid rgba(0,0,0,0.05);
 }
+
+/* ── 탭 간 연결 CTA ── */
+.next-tab-cta {
+    background: linear-gradient(135deg, rgba(37,99,235,0.06), rgba(59,130,246,0.10));
+    border: 1px solid rgba(37,99,235,0.15);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.next-tab-cta-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+.next-tab-cta-text b {
+    font-size: 15px;
+}
+.next-tab-cta-text span {
+    opacity: 0.6;
+    font-size: 13px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -428,7 +453,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── 탭 ───────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["🏠 동네 카드", "💬 동네 찾기", "📊 이사 예보", "🔬 데이터 탐색"])
+tab1, tab2, tab3, tab4 = st.tabs(["🏠 동네 카드", "💬 동네 찾기", "📊 시세 전망", "🔬 데이터 탐색"])
 
 # ════════════════════════════════════════════════════════════════════════════
 # 탭 1: 동네 MBTI 카드
@@ -735,6 +760,17 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
+    # ── 탭 1 → 탭 2 연결 CTA ──
+    st.markdown("""
+    <div class="next-tab-cta">
+        <div class="next-tab-cta-icon">💬</div>
+        <div class="next-tab-cta-text">
+            <b>이 동네 말고 다른 조건으로 찾아볼래요?</b><br>
+            <span>💬 동네 찾기 탭에서 AI에게 자연어로 질문해 보세요</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # ════════════════════════════════════════════════════════════════════════════
 # 탭 2: 자연어 동네 찾기 (Cortex Search + AI_COMPLETE)
 # ════════════════════════════════════════════════════════════════════════════
@@ -963,8 +999,19 @@ with tab2:
             st.session_state.messages = []
             st.experimental_rerun()
 
+    # ── 탭 2 → 탭 3 연결 CTA ──
+    st.markdown("""
+    <div class="next-tab-cta">
+        <div class="next-tab-cta-icon">📊</div>
+        <div class="next-tab-cta-text">
+            <b>후보 동네의 집값 트렌드가 궁금하다면?</b><br>
+            <span>📊 시세 전망 탭에서 실거래가 추이와 ML 예측을 확인하세요</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # ════════════════════════════════════════════════════════════════════════════
-# 탭 3: 이사 예보 (ML FORECAST + AI 분석)
+# 탭 3: 시세 전망 (ML FORECAST + AI 분석)
 # ════════════════════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=3600)
@@ -985,8 +1032,8 @@ def load_forecast(sgg: str, emd: str):
 with tab3:
     st.markdown("""
     <div class="tab-header">
-        <h3>📊 이사 예보 — 시세 트렌드 & ML 예측</h3>
-        <p>아파트 실거래가 추이와 AI 기반 향후 3개월 가격 예측</p>
+        <h3>📊 시세 전망 — 실거래가 & ML 예측</h3>
+        <p>아파트 실거래가 추이와 AI 기반 향후 3개월 가격 예측으로 매매 타이밍을 판단하세요</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1126,6 +1173,17 @@ with tab3:
                     st.info(forecast)
                 except Exception as e:
                     st.error(f"전망 생성 중 오류가 발생했습니다: {str(e)[:100]}")
+
+    # ── 탭 3 → 탭 4 연결 CTA ──
+    st.markdown("""
+    <div class="next-tab-cta">
+        <div class="next-tab-cta-icon">🔬</div>
+        <div class="next-tab-cta-text">
+            <b>더 구체적인 데이터 비교가 필요하다면?</b><br>
+            <span>🔬 데이터 탐색 탭에서 후보 동네들을 한번에 비교하세요</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # 탭 4: 데이터 탐색 — Cortex Analyst (NL2SQL)
