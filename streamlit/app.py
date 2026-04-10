@@ -1098,13 +1098,16 @@ with tab3:
 
         # ── 차트 2: ML 예측 (Altair — SiS 호환) ──
         if has_forecast:
-            st.markdown("**🔮 ML 가격 예측** (향후 3개월)")
+            # 실제 예측 기간 계산
+            fc_days = (forecast_df["TS"].max() - forecast_df["TS"].min()).days
+            fc_period = f"{fc_days // 30 + 1}개월" if fc_days >= 28 else f"{fc_days}일"
+            st.markdown(f"**🔮 ML 가격 예측** (향후 {fc_period})")
             fc_nearest = alt.selection_single(nearest=True, on="mouseover", fields=["TS"], empty="none")
             # 신뢰구간 밴드
             band = alt.Chart(forecast_df).mark_area(opacity=0.2, color="#F87171").encode(
                 x=alt.X("TS:T", title="",
-                         axis=alt.Axis(format="%y년 %m월", labelAngle=-45,
-                                       tickCount=6)),
+                         axis=alt.Axis(format="%m/%d", labelAngle=-45,
+                                       tickCount=len(forecast_df))),
                 y=alt.Y("LOWER_BOUND:Q", title="예측 평당가 (만원)", scale=alt.Scale(zero=False)),
                 y2="UPPER_BOUND:Q",
             )
@@ -1121,7 +1124,7 @@ with tab3:
                 y="FORECAST_PRICE:Q",
                 opacity=alt.condition(fc_nearest, alt.value(1), alt.value(0.7)),
                 tooltip=[
-                    alt.Tooltip("TS:T", title="날짜", format="%Y년 %m월"),
+                    alt.Tooltip("TS:T", title="날짜", format="%Y-%m-%d"),
                     alt.Tooltip("FORECAST_PRICE:Q", title="예측가", format=",.0f"),
                     alt.Tooltip("LOWER_BOUND:Q", title="하한", format=",.0f"),
                     alt.Tooltip("UPPER_BOUND:Q", title="상한", format=",.0f"),
@@ -1142,7 +1145,8 @@ with tab3:
             if has_forecast:
                 pred_latest = forecast_df.iloc[-1]["FORECAST_PRICE"]
                 pred_delta = pred_latest - latest
-                m4.metric("3개월 후 예측", f"{pred_latest:,.0f}만원", f"{pred_delta:+,.0f}만원")
+                fc_end = forecast_df["TS"].max().strftime("%m/%d")
+                m4.metric(f"예측 ({fc_end})", f"{pred_latest:,.0f}만원", f"{pred_delta:+,.0f}만원")
 
         # ── AI 이사 전망 ──
         st.divider()
