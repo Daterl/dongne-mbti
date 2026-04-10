@@ -1098,33 +1098,36 @@ with tab3:
 
         # ── 차트 2: ML 예측 (Altair — SiS 호환) ──
         if has_forecast:
-            # 실제 예측 기간 계산
-            fc_days = (forecast_df["TS"].max() - forecast_df["TS"].min()).days
-            fc_period = f"{fc_days // 30 + 1}개월" if fc_days >= 28 else f"{fc_days}일"
-            st.markdown(f"**🔮 ML 가격 예측** (향후 {fc_period})")
-            fc_nearest = alt.selection_single(nearest=True, on="mouseover", fields=["TS"], empty="none")
-            # 신뢰구간 밴드
+            # 실제 예측 기간: 고유 월 수 기준
+            fc_months = forecast_df["TS"].dt.to_period("M").nunique()
+            st.markdown(f"**🔮 ML 가격 예측** (향후 {fc_months}개월)")
+
+            # 날짜를 문자열 라벨로 변환 (각 포인트마다 표시)
+            forecast_df = forecast_df.copy()
+            forecast_df["날짜"] = forecast_df["TS"].dt.strftime("%m/%d")
+            date_list = forecast_df["날짜"].tolist()
+
+            fc_nearest = alt.selection_single(nearest=True, on="mouseover", fields=["날짜"], empty="none")
             band = alt.Chart(forecast_df).mark_area(opacity=0.2, color="#F87171").encode(
-                x=alt.X("TS:T", title="",
-                         axis=alt.Axis(format="%m/%d", labelAngle=-45,
-                                       tickCount=len(forecast_df))),
+                x=alt.X("날짜:N", title="", sort=date_list,
+                         axis=alt.Axis(labelAngle=-45)),
                 y=alt.Y("LOWER_BOUND:Q", title="예측 평당가 (만원)", scale=alt.Scale(zero=False)),
                 y2="UPPER_BOUND:Q",
             )
             fc_line = alt.Chart(forecast_df).mark_line(
                 color="#F87171", strokeWidth=2.5, strokeDash=[6, 4],
             ).encode(
-                x="TS:T",
+                x=alt.X("날짜:N", sort=date_list),
                 y="FORECAST_PRICE:Q",
             )
             fc_points = alt.Chart(forecast_df).mark_point(
                 size=80, color="#F87171", shape="diamond", filled=True,
             ).encode(
-                x="TS:T",
+                x=alt.X("날짜:N", sort=date_list),
                 y="FORECAST_PRICE:Q",
                 opacity=alt.condition(fc_nearest, alt.value(1), alt.value(0.7)),
                 tooltip=[
-                    alt.Tooltip("TS:T", title="날짜", format="%Y-%m-%d"),
+                    alt.Tooltip("날짜:N", title="날짜"),
                     alt.Tooltip("FORECAST_PRICE:Q", title="예측가", format=",.0f"),
                     alt.Tooltip("LOWER_BOUND:Q", title="하한", format=",.0f"),
                     alt.Tooltip("UPPER_BOUND:Q", title="상한", format=",.0f"),
