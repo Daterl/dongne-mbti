@@ -84,63 +84,235 @@ def load_price_history(sgg: str, emd: str):
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
+/* ── 카드 기본 ── */
 .mbti-card {
-    border-radius: 16px;
-    padding: 24px;
+    border-radius: 24px;
+    padding: 32px 24px 28px;
     color: white;
     text-align: center;
     margin-bottom: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+}
+.mbti-card::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12) 0%, transparent 50%);
+    pointer-events: none;
 }
 .mbti-animal {
     text-align: center;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+}
+.mbti-animal img {
+    transition: transform 0.3s ease;
+}
+.mbti-animal img:hover {
+    transform: scale(1.08);
 }
 .mbti-animal-name {
-    font-size: 13px;
-    opacity: 0.8;
-    margin-top: 2px;
-    letter-spacing: 2px;
+    font-size: 14px;
+    opacity: 0.85;
+    margin-top: 4px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 500;
 }
 .mbti-type {
-    font-size: 56px;
+    font-size: 60px;
     font-weight: 900;
-    letter-spacing: 6px;
+    letter-spacing: 8px;
     margin: 0;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.2);
 }
 .mbti-subtitle {
     font-size: 15px;
-    opacity: 0.85;
+    opacity: 0.8;
     margin-top: 6px;
+    font-weight: 500;
+    letter-spacing: 1px;
 }
-.character-summary {
-    font-size: 17px;
-    font-style: italic;
-    background: rgba(255,255,255,0.15);
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-top: 14px;
-}
+
+/* ── 축 칩 ── */
 .axis-chip {
     display: inline-block;
-    border-radius: 20px;
-    padding: 4px 14px;
+    border-radius: 24px;
+    padding: 5px 16px;
     font-size: 13px;
     font-weight: 600;
-    margin: 4px;
-    background: rgba(255,255,255,0.2);
+    margin: 4px 3px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: background 0.2s ease;
 }
+.axis-chip:hover {
+    background: rgba(255,255,255,0.28);
+}
+
+/* ── 캐릭터 요약 ── */
+.character-summary {
+    font-size: 16px;
+    font-style: italic;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-top: 16px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    line-height: 1.6;
+}
+
+/* ── 섹션 타이틀 ── */
 .section-title {
     font-size: 18px;
     font-weight: 700;
     color: #333;
-    margin: 16px 0 8px 0;
+    margin: 20px 0 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── 베프/라이벌 카드 ── */
+.bff-rival-card {
+    flex: 1;
+    border-radius: 16px;
+    padding: 16px 14px;
+    text-align: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid rgba(0,0,0,0.06);
+}
+.bff-rival-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+/* ── 순위 바 ── */
+.rank-bar-container {
+    margin-bottom: 10px;
+}
+.rank-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+.rank-bar-bg {
+    background: rgba(0,0,0,0.06);
+    border-radius: 8px;
+    height: 10px;
+    overflow: hidden;
+}
+.rank-bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.6s ease;
+    box-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+
+/* ── 같은 MBTI 동네 ── */
+.same-mbti-box {
+    background: linear-gradient(135deg, rgba(0,0,0,0.03), rgba(0,0,0,0.06));
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-top: 12px;
+    border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* ── 케미 카드 ── */
+.chem-card {
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin-top: 10px;
+    text-align: center;
+    font-size: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+
+/* ── 캐릭터 대화 ── */
+.char-dialogue {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 20px;
+    padding: 20px 0;
+}
+.char-dialogue-unit {
+    text-align: center;
+    flex: 0 0 auto;
+}
+.char-bubble {
+    background: rgba(0,0,0,0.05);
+    border-radius: 18px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    position: relative;
+    display: inline-block;
+    max-width: 170px;
+    border: 1px solid rgba(0,0,0,0.06);
+    line-height: 1.5;
+}
+.char-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid rgba(0,0,0,0.05);
+}
+.char-dialogue-label {
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+/* ── 뱃지 ── */
+.badge {
+    display: inline-block;
+    border-radius: 24px;
+    padding: 5px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.badge-type {
+    background: linear-gradient(135deg, #f0f2f6, #e8eaed);
+    color: #444;
+}
+
+/* ── 유틸리티 ── */
+.vs-icon {
+    font-size: 32px;
+    align-self: center;
+    margin: 0 10px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ── 헤더 ─────────────────────────────────────────────────────────────────────
-st.markdown("# 🏙️ 동네 MBTI")
-st.markdown("##### 서울 동네의 성격을 데이터로 읽다 — 서초 · 영등포 · 중구 118개 동")
+st.markdown("""
+<div style="margin-bottom:4px;">
+    <h1 style="margin-bottom:0;font-size:36px;">🏙️ 동네 MBTI</h1>
+    <p style="font-size:15px;opacity:0.6;margin-top:2px;letter-spacing:0.5px;">
+        서울 동네의 성격을 데이터로 읽다 — 서초 · 영등포 · 중구 118개 동
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 # ── 탭 ───────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3 = st.tabs(["🏠 동네 카드", "💬 동네 찾기", "📊 이사 예보"])
@@ -184,12 +356,12 @@ with tab1:
         animal_svg = MBTI_ANIMALS.get(mbti, "")
         animal_name = MBTI_ANIMAL_NAMES.get(mbti, "")
         st.markdown(f"""
-        <div class="mbti-card" style="background: linear-gradient(135deg, {color}, {color}cc);">
+        <div class="mbti-card" style="background: linear-gradient(145deg, {color}, {color}bb, {color}dd);">
             <div class="mbti-animal">{animal_svg}</div>
             <p class="mbti-type">{mbti}</p>
             <p class="mbti-animal-name">{animal_name}</p>
             <p class="mbti-subtitle">{selected_gu} {selected_dong}</p>
-            <div>
+            <div style="margin-top:10px;">
                 <span class="axis-chip">{ei}</span>
                 <span class="axis-chip">{sn}</span>
                 <span class="axis-chip">{tf}</span>
@@ -203,8 +375,7 @@ with tab1:
         neighborhood_type = row.get("NEIGHBORHOOD_TYPE")
         if neighborhood_type and str(neighborhood_type) not in ("None", "nan", ""):
             st.markdown(
-                f'<span style="background:#f0f2f6;border-radius:20px;padding:4px 14px;'
-                f'font-size:13px;font-weight:600;color:#444;">🏷️ {neighborhood_type}</span>',
+                f'<span class="badge badge-type">🏷️ {neighborhood_type}</span>',
                 unsafe_allow_html=True,
             )
 
@@ -233,17 +404,27 @@ with tab1:
         best_animal = MBTI_ANIMAL_NAMES.get(best["MBTI"], "")
         rival_animal = MBTI_ANIMAL_NAMES.get(rival["MBTI"], "")
 
+        best_color = MBTI_COLORS.get(best["MBTI"], "#27ae60")
+        rival_color = MBTI_COLORS.get(rival["MBTI"], "#e74c3c")
+        best_img = MBTI_ANIMALS.get(best["MBTI"], "")
+        rival_img = MBTI_ANIMALS.get(rival["MBTI"], "")
         st.markdown(f"""
-        <div style="display:flex;gap:8px;margin:10px 0;">
-            <div style="flex:1;background:rgba(39,174,96,0.13);border-radius:12px;padding:12px 14px;text-align:center;">
-                <div style="font-size:13px;opacity:0.7;">🤝 베프 동네</div>
+        <div style="display:flex;gap:10px;margin:12px 0;">
+            <div class="bff-rival-card" style="background:linear-gradient(135deg, rgba(39,174,96,0.08), rgba(39,174,96,0.15));">
+                <div style="font-size:12px;opacity:0.6;font-weight:600;letter-spacing:1px;margin-bottom:6px;">🤝 베프 동네</div>
+                <div style="margin:8px 0;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15));">
+                    <div style="display:inline-block;width:48px;height:48px;overflow:hidden;">{best_img}</div>
+                </div>
                 <div style="font-size:17px;font-weight:700;margin:4px 0;">{best["SGG"]} {best["EMD"]}</div>
-                <div style="font-size:13px;opacity:0.8;">{best["MBTI"]} {best_animal}</div>
+                <div style="font-size:13px;opacity:0.7;font-weight:500;">{best["MBTI"]} {best_animal}</div>
             </div>
-            <div style="flex:1;background:rgba(231,76,60,0.13);border-radius:12px;padding:12px 14px;text-align:center;">
-                <div style="font-size:13px;opacity:0.7;">⚡ 라이벌 동네</div>
+            <div class="bff-rival-card" style="background:linear-gradient(135deg, rgba(231,76,60,0.08), rgba(231,76,60,0.15));">
+                <div style="font-size:12px;opacity:0.6;font-weight:600;letter-spacing:1px;margin-bottom:6px;">⚡ 라이벌 동네</div>
+                <div style="margin:8px 0;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15));">
+                    <div style="display:inline-block;width:48px;height:48px;overflow:hidden;">{rival_img}</div>
+                </div>
                 <div style="font-size:17px;font-weight:700;margin:4px 0;">{rival["SGG"]} {rival["EMD"]}</div>
-                <div style="font-size:13px;opacity:0.8;">{rival["MBTI"]} {rival_animal}</div>
+                <div style="font-size:13px;opacity:0.7;font-weight:500;">{rival["MBTI"]} {rival_animal}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -293,17 +474,19 @@ with tab1:
         for axis, label in rank_labels.items():
             rank = int((rank_df[axis] > row[axis]).sum()) + 1
             pct = int(rank / total_dongs * 100)
-            bar_color = color if pct <= 50 else "#888"
+            fill_pct = 100 - pct
+            bar_gradient = f"linear-gradient(90deg, {color}, {color}aa)" if pct <= 50 else "linear-gradient(90deg, #aaa, #888)"
+            rank_emoji = "🥇" if rank <= 3 else ("🥈" if rank <= 10 else "")
             rank_html += f"""
-            <div style="margin-bottom:6px;">
-                <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px;">
-                    <span>{label}</span><span style="opacity:0.7;">{rank}위 / {total_dongs}개 동</span>
+            <div class="rank-bar-container">
+                <div class="rank-bar-label">
+                    <span>{label}</span><span style="opacity:0.6;">{rank_emoji} {rank}위 / {total_dongs}개 동</span>
                 </div>
-                <div style="background:rgba(255,255,255,0.1);border-radius:6px;height:8px;overflow:hidden;">
-                    <div style="width:{100-pct}%;height:100%;background:{bar_color};border-radius:6px;"></div>
+                <div class="rank-bar-bg">
+                    <div class="rank-bar-fill" style="width:{fill_pct}%;background:{bar_gradient};"></div>
                 </div>
             </div>"""
-        st.markdown(f'<div style="margin-top:12px;">{rank_html}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="margin-top:14px;">{rank_html}</div>', unsafe_allow_html=True)
 
         # ── 같은 MBTI 동네 ──
         same_mbti = rank_df[rank_df["MBTI"] == mbti]
@@ -311,16 +494,22 @@ with tab1:
         same_list = [f"{r['SGG']} {r['EMD']}" for _, r in same_others.iterrows()]
         if same_list:
             names = " · ".join(same_list[:8])
+            extra = f" 외 {len(same_list) - 8}곳" if len(same_list) > 8 else ""
             st.markdown(
-                f'<div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;margin-top:10px;">'
-                f'<span style="font-size:13px;opacity:0.7;">🏘️ 같은 {mbti} 동네 ({len(same_mbti)}곳)</span><br>'
-                f'<span style="font-size:14px;">{names}</span></div>',
+                f'<div class="same-mbti-box">'
+                f'<div style="font-size:13px;opacity:0.6;font-weight:600;margin-bottom:6px;">🏘️ 같은 {mbti} 동네 ({len(same_mbti)}곳)</div>'
+                f'<div style="font-size:14px;line-height:1.6;">{names}{extra}</div></div>',
                 unsafe_allow_html=True,
             )
 
     # ── 동네 비교 ──
     st.divider()
-    st.markdown("### 🔍 다른 동네와 비교")
+    st.markdown("""
+    <div style="margin-bottom:8px;">
+        <span style="font-size:22px;font-weight:700;">🔍 다른 동네와 비교</span>
+        <span style="font-size:13px;opacity:0.5;margin-left:8px;">MBTI 궁합을 확인해 보세요</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     all_df = load_mbti_result()
     compare_options = [
@@ -387,9 +576,17 @@ with tab1:
             chem_emoji, chem_msg = "😅", f"{my_animal}와 {c_animal}, 꽤 다른 세계관… 충돌 주의"
         else:
             chem_emoji, chem_msg = "🔥", f"{my_animal}와 {c_animal}, 완전 반대! 오히려 끌리는 매력?"
+        # 케미별 배경색
+        if compatibility >= 80:
+            chem_bg = "linear-gradient(135deg, rgba(243,156,18,0.08), rgba(231,76,60,0.06))"
+        elif compatibility >= 60:
+            chem_bg = "linear-gradient(135deg, rgba(39,174,96,0.06), rgba(52,152,219,0.06))"
+        elif compatibility >= 40:
+            chem_bg = "linear-gradient(135deg, rgba(149,165,166,0.08), rgba(127,140,141,0.06))"
+        else:
+            chem_bg = "linear-gradient(135deg, rgba(231,76,60,0.06), rgba(192,57,43,0.08))"
         st.markdown(
-            f'<div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px 18px;'
-            f'margin-top:8px;text-align:center;font-size:16px;">'
+            f'<div class="chem-card" style="background:{chem_bg};">'
             f'{chem_emoji} <b>{mbti} × {c_row["MBTI"]} 케미:</b> {chem_msg}</div>',
             unsafe_allow_html=True,
         )
@@ -414,29 +611,17 @@ with tab1:
             my_say = f"완전 다른 세계다… 😳"
             c_say = f"그치만 끌리는걸? 🔥"
         st.markdown(f"""
-        <div style="display:flex;align-items:flex-start;justify-content:center;gap:12px;margin-top:16px;padding:16px 0;">
-            <div style="text-align:center;flex:0 0 auto;">
-                <div style="background:rgba(255,255,255,0.1);border-radius:16px;padding:10px 14px;
-                    margin-bottom:8px;font-size:13px;position:relative;display:inline-block;max-width:160px;">
-                    {my_say}
-                    <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
-                        width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
-                        border-top:6px solid rgba(255,255,255,0.1);"></div>
-                </div>
-                <div>{my_img}</div>
-                <div style="font-size:12px;opacity:0.7;margin-top:4px;">{selected_dong}<br>{mbti} {my_animal}</div>
+        <div class="char-dialogue">
+            <div class="char-dialogue-unit">
+                <div class="char-bubble">{my_say}</div>
+                <div style="filter:drop-shadow(0 3px 8px rgba(0,0,0,0.15));">{my_img}</div>
+                <div class="char-dialogue-label">{selected_dong}<br><b>{mbti}</b> {my_animal}</div>
             </div>
-            <div style="font-size:28px;align-self:center;margin:0 8px;">⚡</div>
-            <div style="text-align:center;flex:0 0 auto;">
-                <div style="background:rgba(255,255,255,0.1);border-radius:16px;padding:10px 14px;
-                    margin-bottom:8px;font-size:13px;position:relative;display:inline-block;max-width:160px;">
-                    {c_say}
-                    <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
-                        width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
-                        border-top:6px solid rgba(255,255,255,0.1);"></div>
-                </div>
-                <div>{c_img}</div>
-                <div style="font-size:12px;opacity:0.7;margin-top:4px;">{c_dong}<br>{c_row["MBTI"]} {c_animal}</div>
+            <div class="vs-icon">⚡</div>
+            <div class="char-dialogue-unit">
+                <div class="char-bubble">{c_say}</div>
+                <div style="filter:drop-shadow(0 3px 8px rgba(0,0,0,0.15));">{c_img}</div>
+                <div class="char-dialogue-label">{c_dong}<br><b>{c_row["MBTI"]}</b> {c_animal}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
