@@ -643,3 +643,129 @@ with tab3:
                     st.info(forecast)
                 except Exception as e:
                     st.error(f"전망 생성 중 오류가 발생했습니다: {str(e)[:100]}")
+
+# ════════════════════════════════════════════════════════════════════════════
+# 탭 3 하단: Cortex Analyst — 자연어 데이터 조회 (NL2SQL)
+# ════════════════════════════════════════════════════════════════════════════
+with tab3:
+    st.divider()
+    st.markdown("### 🔬 Cortex Analyst — 자연어로 MBTI 데이터 조회")
+    st.caption(
+        "Snowflake Cortex Analyst가 자연어 질문을 SQL로 자동 변환하여 정형 데이터를 조회합니다. "
+        "Cortex Search(비정형 텍스트 검색)와 달리, 점수·통계·순위 등 수치 데이터 질의에 최적화."
+    )
+
+    _ANALYST_SEMANTIC_MODEL = (
+        "@DONGNE_MBTI.PUBLIC.DONGNE_REPO/branches/main/models/dongne_mbti.yaml"
+    )
+    _ANALYST_EXAMPLES = [
+        "서초구에서 가장 외향적인(E) 동네 TOP 3 알려줘",
+        "ISTJ 유형인 동네 목록 보여줘",
+        "각 구별 평균 TF 점수 비교해줘",
+        "영등포구에서 변화(P) 성향이 가장 강한 동네는?",
+        "16개 MBTI 유형 분포가 어떻게 돼?",
+    ]
+
+    # 예시 질문 버튼
+    if not st.session_state.get("analyst_history"):
+        st.markdown("**예시 질문:**")
+        ex_cols = st.columns(len(_ANALYST_EXAMPLES))
+        for i, ex in enumerate(_ANALYST_EXAMPLES):
+            if ex_cols[i].button(ex, key=f"analyst_ex_{i}", use_container_width=True):
+                st.session_state["_analyst_pending"] = ex
+                st.experimental_rerun()
+
+    # 대화 히스토리 출력
+    for msg in st.session_state.get("analyst_history", []):
+        icon = "🧑" if msg["role"] == "user" else "📊"
+        st.markdown(f"**{icon}** {msg['content']}")
+        if msg.get("sql"):
+            with st.expander("생성된 SQL 보기"):
+                st.code(msg["sql"], language="sql")
+        if msg.get("data") is not None:
+            st.dataframe(msg["data"], use_container_width=True)
+        st.divider()
+
+    # 입력 폼
+    analyst_prompt = st.session_state.pop("_analyst_pending", None)
+    with st.form(key="analyst_form", clear_on_submit=True):
+        a_col1, a_col2 = st.columns([5, 1])
+        with a_col1:
+            analyst_input = st.text_input(
+                "Analyst 질문",
+                placeholder="예: 서초구에서 가장 부유한(T) 동네 TOP 5는?",
+                label_visibility="collapsed",
+            )
+        with a_col2:
+            analyst_send = st.form_submit_button("조회", use_container_width=True)
+
+    if analyst_send and analyst_input:
+        analyst_prompt = analyst_input
+
+    if analyst_prompt:
+        if "analyst_history" not in st.session_state:
+            st.session_state.analyst_history = []
+        st.session_state.analyst_history.append({"role": "user", "content": analyst_prompt})
+
+        with st.spinner("Cortex Analyst가 SQL을 생성하고 있어요..."):
+            try:
+                analyst_body = {
+                    "messages": [
+                        {"role": "user", "content": [{"type": "text", "text": analyst_prompt}]}
+                    ],
+                    "semantic_model_file": _ANALYST_SEMANTIC_MODEL,
+                }
+                resp = _snowflake.send_snow_api_request(
+                    "POST",
+                    "/api/v2/cortex/analyst/message",
+                    {}, {},
+                    analyst_body,
+                    None,
+                    30000,
+                )
+                if resp.get("status") == 200:
+                    resp_data = _json.loads(resp.get("content", "{}"))
+                    content_blocks = resp_data.get("message", {}).get("content", [])
+
+                    analyst_text = ""
+                    analyst_sql = ""
+                    for block in content_blocks:
+                        if block.get("type") == "text":
+                            analyst_text = block.get("text", "")
+                        elif block.get("type") == "sql":
+                            analyst_sql = block.get("statement", "")
+
+                    # SQL 실행하여 결과 표시
+                    result_df = None
+                    if analyst_sql:
+                        try:
+                            result_df = session.sql(analyst_sql).to_pandas()
+                        except Exception:
+                            result_df = None
+
+                    st.session_state.analyst_history.append({
+                        "role": "analyst",
+                        "content": analyst_text or "SQL을 생성했습니다.",
+                        "sql": analyst_sql,
+                        "data": result_df,
+                    })
+                else:
+                    st.session_state.analyst_history.append({
+                        "role": "analyst",
+                        "content": f"Cortex Analyst 오류 (status: {resp.get('status')})",
+                        "sql": None,
+                        "data": None,
+                    })
+            except Exception as e:
+                st.session_state.analyst_history.append({
+                    "role": "analyst",
+                    "content": f"오류가 발생했습니다: {str(e)[:150]}",
+                    "sql": None,
+                    "data": None,
+                })
+        st.experimental_rerun()
+
+    if st.session_state.get("analyst_history"):
+        if st.button("조회 초기화", key="reset_analyst"):
+            st.session_state.analyst_history = []
+            st.experimental_rerun()
