@@ -193,6 +193,15 @@ st.markdown("""
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0,0,0,0.08);
 }
+.bff-rival-img {
+    margin: 8px 0;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
+}
+.bff-rival-img img {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+}
 
 /* ── 순위 바 ── */
 .rank-bar-container {
@@ -412,17 +421,13 @@ with tab1:
         <div style="display:flex;gap:10px;margin:12px 0;">
             <div class="bff-rival-card" style="background:linear-gradient(135deg, rgba(39,174,96,0.08), rgba(39,174,96,0.15));">
                 <div style="font-size:12px;opacity:0.6;font-weight:600;letter-spacing:1px;margin-bottom:6px;">🤝 베프 동네</div>
-                <div style="margin:8px 0;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15));">
-                    <div style="display:inline-block;width:48px;height:48px;overflow:hidden;">{best_img}</div>
-                </div>
+                <div class="bff-rival-img">{best_img}</div>
                 <div style="font-size:17px;font-weight:700;margin:4px 0;">{best["SGG"]} {best["EMD"]}</div>
                 <div style="font-size:13px;opacity:0.7;font-weight:500;">{best["MBTI"]} {best_animal}</div>
             </div>
             <div class="bff-rival-card" style="background:linear-gradient(135deg, rgba(231,76,60,0.08), rgba(231,76,60,0.15));">
                 <div style="font-size:12px;opacity:0.6;font-weight:600;letter-spacing:1px;margin-bottom:6px;">⚡ 라이벌 동네</div>
-                <div style="margin:8px 0;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15));">
-                    <div style="display:inline-block;width:48px;height:48px;overflow:hidden;">{rival_img}</div>
-                </div>
+                <div class="bff-rival-img">{rival_img}</div>
                 <div style="font-size:17px;font-weight:700;margin:4px 0;">{rival["SGG"]} {rival["EMD"]}</div>
                 <div style="font-size:13px;opacity:0.7;font-weight:500;">{rival["MBTI"]} {rival_animal}</div>
             </div>
