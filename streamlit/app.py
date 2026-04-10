@@ -6,6 +6,7 @@ Streamlit in Snowflake App
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import altair as alt
 from snowflake.snowpark.context import get_active_session
 from animals import MBTI_ANIMALS, MBTI_ANIMAL_NAMES
 
@@ -1062,22 +1063,70 @@ with tab3:
             forecast_df["LOWER_BOUND"] = pd.to_numeric(forecast_df["LOWER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
             forecast_df["UPPER_BOUND"] = pd.to_numeric(forecast_df["UPPER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
 
-        # 최근 36개월만 표시 (트렌드 가독성)
+        # ── 기간 선택 ──
         price_full = price_df.copy()
-        price_df = price_df.tail(36)
+        period_options = {"최근 12개월": 12, "최근 24개월": 24, "최근 36개월": 36, "전체": len(price_full)}
+        selected_period = st.selectbox("조회 기간", list(period_options.keys()), index=2, key="t3_period")
+        price_df = price_full.tail(period_options[selected_period])
 
-        # ── 차트 1: 실거래 평당가 (Streamlit 네이티브 — SiS 호환) ──
-        st.markdown("**📈 실거래 평당가 추이** (최근 36개월)")
-        chart_df = price_df.set_index("YYYYMMDD")[["AVG_PRICE"]].rename(columns={"AVG_PRICE": "평당가 (만원)"})
-        st.line_chart(chart_df, height=340)
+        # X축 라벨: "23년 1월" 형식
+        price_df = price_df.copy()
+        price_df["월"] = price_df["YYYYMMDD"].dt.strftime("%y년 %m월").str.replace(" 0", " ", regex=False)
 
-        # ── 차트 2: ML 예측 (Streamlit 네이티브 — SiS 호환) ──
+        # ── 차트 1: 실거래 평당가 (Altair — 호버 툴팁 + SiS 호환) ──
+        st.markdown(f"**📈 실거래 평당가 추이** ({selected_period})")
+        nearest = alt.selection_point(nearest=True, on="pointerover", fields=["YYYYMMDD"], empty=False)
+        base = alt.Chart(price_df).encode(
+            x=alt.X("YYYYMMDD:T", title="월", axis=alt.Axis(format="%y년 %m월", labelAngle=-45)),
+            y=alt.Y("AVG_PRICE:Q", title="평당가 (만원)", scale=alt.Scale(zero=False)),
+        )
+        line = base.mark_line(color="#60A5FA", strokeWidth=2.5)
+        points = base.mark_circle(size=50, color="#60A5FA").encode(
+            opacity=alt.condition(nearest, alt.value(1), alt.value(0)),
+            tooltip=[
+                alt.Tooltip("YYYYMMDD:T", title="날짜", format="%Y년 %m월"),
+                alt.Tooltip("AVG_PRICE:Q", title="평당가", format=",.0f"),
+            ],
+        ).add_params(nearest)
+        rule = base.mark_rule(color="gray", strokeDash=[4, 4]).encode(
+            opacity=alt.condition(nearest, alt.value(0.5), alt.value(0)),
+        ).transform_filter(nearest)
+        chart1 = (line + points + rule).properties(height=340).configure_view(
+            strokeWidth=0,
+        )
+        st.altair_chart(chart1, use_container_width=True)
+
+        # ── 차트 2: ML 예측 (Altair — SiS 호환) ──
         if has_forecast:
             st.markdown("**🔮 ML 가격 예측** (향후 3개월)")
-            fc_chart = forecast_df.set_index("TS")[["FORECAST_PRICE", "UPPER_BOUND", "LOWER_BOUND"]].rename(
-                columns={"FORECAST_PRICE": "ML 예측", "UPPER_BOUND": "상한", "LOWER_BOUND": "하한"}
+            fc_nearest = alt.selection_point(nearest=True, on="pointerover", fields=["TS"], empty=False)
+            # 신뢰구간 밴드
+            band = alt.Chart(forecast_df).mark_area(opacity=0.2, color="#F87171").encode(
+                x=alt.X("TS:T", title="월", axis=alt.Axis(format="%y년 %m월", labelAngle=-45)),
+                y=alt.Y("LOWER_BOUND:Q", title="예측 평당가 (만원)", scale=alt.Scale(zero=False)),
+                y2="UPPER_BOUND:Q",
             )
-            st.line_chart(fc_chart, height=300)
+            fc_line = alt.Chart(forecast_df).mark_line(
+                color="#F87171", strokeWidth=2.5, strokeDash=[6, 4],
+            ).encode(
+                x="TS:T",
+                y="FORECAST_PRICE:Q",
+            )
+            fc_points = alt.Chart(forecast_df).mark_point(
+                size=80, color="#F87171", shape="diamond", filled=True,
+            ).encode(
+                x="TS:T",
+                y="FORECAST_PRICE:Q",
+                opacity=alt.condition(fc_nearest, alt.value(1), alt.value(0.7)),
+                tooltip=[
+                    alt.Tooltip("TS:T", title="날짜", format="%Y년 %m월"),
+                    alt.Tooltip("FORECAST_PRICE:Q", title="예측가", format=",.0f"),
+                    alt.Tooltip("LOWER_BOUND:Q", title="하한", format=",.0f"),
+                    alt.Tooltip("UPPER_BOUND:Q", title="상한", format=",.0f"),
+                ],
+            ).add_params(fc_nearest)
+            chart2 = (band + fc_line + fc_points).properties(height=280).configure_view(strokeWidth=0)
+            st.altair_chart(chart2, use_container_width=True)
 
         # ── 메트릭 ──
         if len(price_df) >= 2:
@@ -1087,7 +1136,7 @@ with tab3:
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("최근 평당가", f"{latest:,.0f}만원", f"{delta:+,.0f}만원")
             m2.metric("차트 기간", f"{price_df['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_df['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}")
-            m3.metric("전체 데이터", f"{len(price_full)}개월", help=f"전체: {price_full['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_full['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}, 차트는 최근 36개월")
+            m3.metric("전체 데이터", f"{len(price_full)}개월")
             if has_forecast:
                 pred_latest = forecast_df.iloc[-1]["FORECAST_PRICE"]
                 pred_delta = pred_latest - latest
