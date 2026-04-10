@@ -1066,72 +1066,76 @@ with tab3:
         price_full = price_df.copy()
         price_df = price_df.tail(36)
 
-        # ── 통합 시세 차트 (실적 + ML 예측) ──
-        fig3 = go.Figure()
+        # ── 차트 공통 레이아웃 ──
+        _chart_layout = dict(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(255,255,255,0.85)", size=13),
+            hovermode="x unified",
+            margin=dict(t=30, b=40, l=60, r=20),
+        )
+        _chart_cfg = {"staticPlot": True}
 
-        # Y축 범위: 표시 데이터 범위에 맞게 설정
-        all_prices = list(price_df["AVG_PRICE"])
-        if has_forecast:
-            all_prices += list(forecast_df["UPPER_BOUND"].dropna())
-            all_prices += list(forecast_df["LOWER_BOUND"].dropna())
-        y_min = min(all_prices) * 0.92
-        y_max = max(all_prices) * 1.08
-
-        # 실적 데이터 — 면적 채우기 + 굵은 선
-        fig3.add_trace(go.Scatter(
+        # ── 차트 1: 실거래 평당가 ──
+        st.markdown("**📈 실거래 평당가 추이** (최근 36개월)")
+        fig_actual = go.Figure()
+        fig_actual.add_trace(go.Scatter(
             x=price_df["YYYYMMDD"],
             y=price_df["AVG_PRICE"],
             mode="lines+markers",
             line=dict(color="#60A5FA", width=3),
-            marker=dict(size=6, color="#60A5FA"),
-            fill="tozeroy",
-            fillcolor="rgba(96,165,250,0.12)",
+            marker=dict(size=7, color="#60A5FA"),
             name="실거래 평당가",
         ))
+        p_min = price_df["AVG_PRICE"].min() * 0.92
+        p_max = price_df["AVG_PRICE"].max() * 1.08
+        fig_actual.update_layout(
+            **_chart_layout,
+            xaxis_title="월",
+            yaxis_title="평당가 (만원)",
+            yaxis=dict(range=[p_min, p_max], gridcolor="rgba(255,255,255,0.08)"),
+            xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
+            height=340,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_actual, use_container_width=True, config=_chart_cfg)
 
+        # ── 차트 2: ML 예측 ──
         if has_forecast:
+            st.markdown("**🔮 ML 가격 예측** (향후 3개월)")
+            fig_fc = go.Figure()
+            # 신뢰구간 밴드
             if not forecast_df["UPPER_BOUND"].isna().all():
-                y_max = max(y_max, forecast_df["UPPER_BOUND"].max() * 1.05)
-            # 예측 신뢰구간 (밴드)
-            fig3.add_trace(go.Scatter(
-                x=list(forecast_df["TS"]) + list(forecast_df["TS"][::-1]),
-                y=list(forecast_df["UPPER_BOUND"]) + list(forecast_df["LOWER_BOUND"][::-1]),
-                fill="toself",
-                fillcolor="rgba(248,113,113,0.25)",
-                line=dict(color="rgba(0,0,0,0)"),
-                name="예측 범위 (90%)",
-                hoverinfo="skip",
-            ))
+                fig_fc.add_trace(go.Scatter(
+                    x=list(forecast_df["TS"]) + list(forecast_df["TS"][::-1]),
+                    y=list(forecast_df["UPPER_BOUND"]) + list(forecast_df["LOWER_BOUND"][::-1]),
+                    fill="toself",
+                    fillcolor="rgba(248,113,113,0.20)",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    name="예측 범위 (90%)",
+                    hoverinfo="skip",
+                ))
             # 예측 중앙값
-            fig3.add_trace(go.Scatter(
+            fig_fc.add_trace(go.Scatter(
                 x=forecast_df["TS"],
                 y=forecast_df["FORECAST_PRICE"],
                 mode="lines+markers",
                 line=dict(color="#F87171", width=3, dash="dash"),
-                marker=dict(size=8, symbol="diamond", color="#F87171"),
+                marker=dict(size=9, symbol="diamond", color="#F87171"),
                 name="ML 예측",
             ))
-
-        fig3.update_layout(
-            xaxis_title="월",
-            yaxis_title="평당가 (만원)",
-            yaxis=dict(range=[y_min, y_max], gridcolor="rgba(255,255,255,0.1)"),
-            xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
-            hovermode="x unified",
-            height=420,
-            margin=dict(t=20, b=40, l=60, r=20),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="rgba(255,255,255,0.7)"),
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.15,
-                xanchor="center",
-                x=0.5,
-            ),
-        )
-        st.plotly_chart(fig3, use_container_width=True, config={"staticPlot": True})
+            fc_min = forecast_df["LOWER_BOUND"].min() * 0.95
+            fc_max = forecast_df["UPPER_BOUND"].max() * 1.05
+            fig_fc.update_layout(
+                **_chart_layout,
+                xaxis_title="월",
+                yaxis_title="예측 평당가 (만원)",
+                yaxis=dict(range=[fc_min, fc_max], gridcolor="rgba(255,255,255,0.08)"),
+                xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
+                height=300,
+                legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+            )
+            st.plotly_chart(fig_fc, use_container_width=True, config=_chart_cfg)
 
         # ── 메트릭 ──
         if len(price_df) >= 2:
