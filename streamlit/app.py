@@ -285,6 +285,39 @@ with tab1:
         c3.metric("T/F", f"{row['TF_SCORE']:+.2f}", help="양수=이성/부유(T), 음수=감성/서민(F)")
         c4.metric("J/P", f"{row['JP_SCORE']:+.2f}", help="양수=변화(P), 음수=안정(J)")
 
+        # ── 축별 순위 ──
+        rank_df = load_mbti_result()
+        total_dongs = len(rank_df)
+        rank_labels = {"EI_SCORE": "E/I 활동성", "SN_SCORE": "S/N 라이프", "TF_SCORE": "T/F 경제력", "JP_SCORE": "J/P 안정성"}
+        rank_html = ""
+        for axis, label in rank_labels.items():
+            rank = int((rank_df[axis] > row[axis]).sum()) + 1
+            pct = int(rank / total_dongs * 100)
+            bar_color = color if pct <= 50 else "#888"
+            rank_html += f"""
+            <div style="margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px;">
+                    <span>{label}</span><span style="opacity:0.7;">{rank}위 / {total_dongs}개 동</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.1);border-radius:6px;height:8px;overflow:hidden;">
+                    <div style="width:{100-pct}%;height:100%;background:{bar_color};border-radius:6px;"></div>
+                </div>
+            </div>"""
+        st.markdown(f'<div style="margin-top:12px;">{rank_html}</div>', unsafe_allow_html=True)
+
+        # ── 같은 MBTI 동네 ──
+        same_mbti = rank_df[rank_df["MBTI"] == mbti]
+        same_others = same_mbti[~((same_mbti["SGG"] == selected_gu) & (same_mbti["EMD"] == selected_dong))]
+        same_list = [f"{r['SGG']} {r['EMD']}" for _, r in same_others.iterrows()]
+        if same_list:
+            names = " · ".join(same_list[:8])
+            st.markdown(
+                f'<div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;margin-top:10px;">'
+                f'<span style="font-size:13px;opacity:0.7;">🏘️ 같은 {mbti} 동네 ({len(same_mbti)}곳)</span><br>'
+                f'<span style="font-size:14px;">{names}</span></div>',
+                unsafe_allow_html=True,
+            )
+
     # ── 동네 비교 ──
     st.divider()
     st.markdown("### 🔍 다른 동네와 비교")
