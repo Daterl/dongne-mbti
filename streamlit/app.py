@@ -295,18 +295,30 @@ def _check_unsupported_district(query: str):
     return None
 
 
-def _cortex_search(query: str) -> list:
+def _extract_sgg(query: str):
+    """쿼리에서 구 이름 감지."""
+    for sgg in _SUPPORTED_SGG:
+        if sgg in query:
+            return sgg
+    return None
+
+
+def _cortex_search(query: str, sgg_filter: str = None) -> list:
     """Cortex Search REST 호출 → 동네 프로필 리스트 반환. 실패 시 SQL ILIKE 폴백."""
+    body = {
+        "query": query,
+        "columns": ["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY", "PROFILE_TEXT"],
+        "limit": 5,
+    }
+    if sgg_filter:
+        body["filter"] = {"@eq": {"SGG": sgg_filter}}
+
     try:
         resp = _snowflake.send_snow_api_request(
             "POST",
             "/api/v2/databases/DONGNE_MBTI/schemas/PUBLIC/cortex-search-services/DONGNE_SEARCH:query",
             {}, {},
-            {
-                "query": query,
-                "columns": ["SGG", "EMD", "MBTI", "CHARACTER_SUMMARY", "PROFILE_TEXT"],
-                "limit": 5,
-            },
+            body,
             None,
             30000,
         )
@@ -321,12 +333,14 @@ def _cortex_search(query: str) -> list:
     # SQL ILIKE 폴백 (Cortex Search 실패 시)
     try:
         kw = query.replace("'", "''")
+        sgg_cond = f"AND SGG = '{sgg_filter}'" if sgg_filter else ""
         rows = session.sql(f"""
             SELECT SGG, EMD, MBTI, CHARACTER_SUMMARY, PROFILE_TEXT
             FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
-            WHERE PROFILE_TEXT ILIKE '%{kw}%'
+            WHERE (PROFILE_TEXT ILIKE '%{kw}%'
                OR CHARACTER_SUMMARY ILIKE '%{kw}%'
-               OR MBTI ILIKE '%{kw}%'
+               OR MBTI ILIKE '%{kw}%')
+            {sgg_cond}
             LIMIT 5
         """).to_pandas()
         return rows.to_dict("records")
@@ -336,7 +350,8 @@ def _cortex_search(query: str) -> list:
 
 def _search_and_respond(query: str) -> tuple:
     """Cortex Search → AI_COMPLETE(mistral-large2) 조합으로 자연어 답변 생성."""
-    results = _cortex_search(query)
+    sgg = _extract_sgg(query)
+    results = _cortex_search(query, sgg_filter=sgg)
 
     if results:
         context = "\n".join([
