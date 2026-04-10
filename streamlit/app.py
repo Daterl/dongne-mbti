@@ -1076,29 +1076,10 @@ with tab3:
         )
         _chart_cfg = {"staticPlot": True}
 
-        # ── 차트 1: 실거래 평당가 ──
+        # ── 차트 1: 실거래 평당가 (Streamlit 네이티브 — SiS 호환) ──
         st.markdown("**📈 실거래 평당가 추이** (최근 36개월)")
-        fig_actual = go.Figure()
-        fig_actual.add_trace(go.Scatter(
-            x=price_df["YYYYMMDD"],
-            y=price_df["AVG_PRICE"],
-            mode="lines+markers",
-            line=dict(color="#60A5FA", width=3),
-            marker=dict(size=7, color="#60A5FA"),
-            name="실거래 평당가",
-        ))
-        p_min = price_df["AVG_PRICE"].min() * 0.92
-        p_max = price_df["AVG_PRICE"].max() * 1.08
-        fig_actual.update_layout(
-            **_chart_layout,
-            xaxis_title="월",
-            yaxis_title="평당가 (만원)",
-            yaxis=dict(range=[p_min, p_max], gridcolor="rgba(255,255,255,0.08)"),
-            xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
-            height=340,
-            showlegend=False,
-        )
-        st.plotly_chart(fig_actual, use_container_width=True, config=_chart_cfg)
+        chart_df = price_df.set_index("YYYYMMDD")[["AVG_PRICE"]].rename(columns={"AVG_PRICE": "평당가 (만원)"})
+        st.line_chart(chart_df, height=340)
 
         # ── 차트 2: ML 예측 ──
         if has_forecast:
