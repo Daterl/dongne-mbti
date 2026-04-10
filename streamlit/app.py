@@ -394,6 +394,53 @@ with tab1:
             unsafe_allow_html=True,
         )
 
+        # ── 캐릭터 대화 ──
+        my_img = MBTI_ANIMALS.get(mbti, "")
+        c_img = MBTI_ANIMALS.get(c_row["MBTI"], "")
+        # 궁합별 말풍선 멘트
+        if compatibility >= 80:
+            my_say = f"우리 완전 통하잖아! 🥹"
+            c_say = f"내 맘을 아는 동네 ✨"
+        elif compatibility >= 60:
+            my_say = f"좀 다르긴 한데… 괜찮은걸?"
+            c_say = f"나도 그렇게 생각해 😏"
+        elif compatibility >= 40:
+            my_say = f"음… 적응하면 되겠지?"
+            c_say = f"서로 노력하면 되지 뭐 😅"
+        elif compatibility >= 20:
+            my_say = f"여긴 좀 낯선데…?"
+            c_say = f"우리 세계관이 다른 듯 🤨"
+        else:
+            my_say = f"완전 다른 세계다… 😳"
+            c_say = f"그치만 끌리는걸? 🔥"
+        st.markdown(f"""
+        <div style="display:flex;align-items:flex-start;justify-content:center;gap:12px;margin-top:16px;padding:16px 0;">
+            <div style="text-align:center;flex:0 0 auto;">
+                <div style="background:rgba(255,255,255,0.1);border-radius:16px;padding:10px 14px;
+                    margin-bottom:8px;font-size:13px;position:relative;display:inline-block;max-width:160px;">
+                    {my_say}
+                    <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+                        width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
+                        border-top:6px solid rgba(255,255,255,0.1);"></div>
+                </div>
+                <div>{my_img}</div>
+                <div style="font-size:12px;opacity:0.7;margin-top:4px;">{selected_dong}<br>{mbti} {my_animal}</div>
+            </div>
+            <div style="font-size:28px;align-self:center;margin:0 8px;">⚡</div>
+            <div style="text-align:center;flex:0 0 auto;">
+                <div style="background:rgba(255,255,255,0.1);border-radius:16px;padding:10px 14px;
+                    margin-bottom:8px;font-size:13px;position:relative;display:inline-block;max-width:160px;">
+                    {c_say}
+                    <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+                        width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
+                        border-top:6px solid rgba(255,255,255,0.1);"></div>
+                </div>
+                <div>{c_img}</div>
+                <div style="font-size:12px;opacity:0.7;margin-top:4px;">{c_dong}<br>{c_row["MBTI"]} {c_animal}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 # ════════════════════════════════════════════════════════════════════════════
 # 탭 2: 자연어 동네 찾기 (Cortex Search + AI_COMPLETE)
 # ════════════════════════════════════════════════════════════════════════════
