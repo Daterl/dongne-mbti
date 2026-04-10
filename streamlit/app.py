@@ -462,7 +462,7 @@ with tab1:
             margin=dict(t=20, b=20, l=20, r=20),
             height=320,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
         # 4축 수치 메트릭
         c1, c2, c3, c4 = st.columns(4)
@@ -557,7 +557,7 @@ with tab1:
             height=340,
             legend=dict(orientation="h", yanchor="bottom", y=1.05),
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, config={"staticPlot": True})
 
         # 궁합 점수 (축별 거리 기반)
         distance = sum(abs(row[a] - c_row[a]) for a in axes)
@@ -949,7 +949,7 @@ with tab3:
                 x=0.5,
             ),
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, use_container_width=True, config={"staticPlot": True})
 
         # ── 메트릭 ──
         if len(price_df) >= 2:
