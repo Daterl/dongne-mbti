@@ -188,6 +188,9 @@ st.markdown("""
     text-align: center;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     border: 1px solid rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 .bff-rival-card:hover {
     transform: translateY(-2px);
@@ -196,10 +199,14 @@ st.markdown("""
 .bff-rival-img {
     margin: 8px 0;
     filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .bff-rival-img img {
-    width: 56px;
-    height: 56px;
+    width: 60px;
+    height: 60px;
     object-fit: contain;
 }
 
