@@ -496,21 +496,12 @@ with tab3:
             forecast_df["LOWER_BOUND"] = pd.to_numeric(forecast_df["LOWER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
             forecast_df["UPPER_BOUND"] = pd.to_numeric(forecast_df["UPPER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
 
-        # ── 단위 자동 정규화 (백만원 → 만원 변환) ──
-        # MEME_PRICE_PER_SUPPLY_PYEONG이 백만원 단위 저장 시 × 100 보정
-        # ML FORECAST는 만원 단위 기준으로 훈련되어 있으므로 실거래가를 맞춤
-        if has_forecast:
-            actual_mean = price_df["AVG_PRICE"].mean()
-            forecast_mean = forecast_df["FORECAST_PRICE"].mean()
-            if actual_mean > 0 and forecast_mean / actual_mean > 50:
-                price_df = price_df.copy()
-                price_df["AVG_PRICE"] = price_df["AVG_PRICE"] * 100
-
         # ── 통합 시세 차트 (실적 + ML 예측) ──
         fig3 = go.Figure()
 
-        # Y축 범위 기준 계산
-        y_max = price_df["AVG_PRICE"].max() * 1.15
+        # Y축 범위: 데이터 범위에 맞게 설정 (0부터 시작하지 않음)
+        y_min = price_df["AVG_PRICE"].min() * 0.90
+        y_max = price_df["AVG_PRICE"].max() * 1.10
 
         # 실적 데이터
         fig3.add_trace(go.Scatter(
@@ -524,7 +515,7 @@ with tab3:
 
         if has_forecast:
             if not forecast_df["UPPER_BOUND"].isna().all():
-                y_max = max(y_max, forecast_df["UPPER_BOUND"].max() * 1.1)
+                y_max = max(y_max, forecast_df["UPPER_BOUND"].max() * 1.05)
             # 예측 신뢰구간 (밴드)
             fig3.add_trace(go.Scatter(
                 x=list(forecast_df["TS"]) + list(forecast_df["TS"][::-1]),
@@ -548,7 +539,7 @@ with tab3:
         fig3.update_layout(
             xaxis_title="월",
             yaxis_title="평당가 (만원)",
-            yaxis=dict(range=[0, y_max]),
+            yaxis=dict(range=[y_min, y_max]),
             hovermode="x unified",
             height=420,
             margin=dict(t=20, b=40, l=60, r=20),
