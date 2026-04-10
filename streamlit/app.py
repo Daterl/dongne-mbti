@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from snowflake.snowpark.context import get_active_session
+from animals import MBTI_ANIMALS, MBTI_ANIMAL_NAMES
 
 # ── AI 모델 설정 ──────────────────────────────────────────────────────────────
 # 모델명을 상수로 분리 → 업그레이드 시 여기만 변경
@@ -90,6 +91,16 @@ st.markdown("""
     text-align: center;
     margin-bottom: 16px;
 }
+.mbti-animal {
+    text-align: center;
+    margin-bottom: 4px;
+}
+.mbti-animal-name {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-top: 2px;
+    letter-spacing: 2px;
+}
 .mbti-type {
     font-size: 56px;
     font-weight: 900;
@@ -170,9 +181,13 @@ with tab1:
 
     # ── MBTI 카드 ──
     with col_card:
+        animal_svg = MBTI_ANIMALS.get(mbti, "")
+        animal_name = MBTI_ANIMAL_NAMES.get(mbti, "")
         st.markdown(f"""
         <div class="mbti-card" style="background: linear-gradient(135deg, {color}, {color}cc);">
+            <div class="mbti-animal">{animal_svg}</div>
             <p class="mbti-type">{mbti}</p>
+            <p class="mbti-animal-name">{animal_name}</p>
             <p class="mbti-subtitle">{selected_gu} {selected_dong}</p>
             <div>
                 <span class="axis-chip">{ei}</span>
