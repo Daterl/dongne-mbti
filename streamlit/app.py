@@ -223,6 +223,31 @@ with tab1:
             except (ValueError, TypeError):
                 pass
 
+        # ── 베프 동네 / 라이벌 동네 ──
+        all_df = load_mbti_result()
+        others = all_df[~((all_df["SGG"] == selected_gu) & (all_df["EMD"] == selected_dong))].copy()
+        _axes = ["EI_SCORE", "SN_SCORE", "TF_SCORE", "JP_SCORE"]
+        others["_dist"] = others.apply(lambda r: sum(abs(row[a] - r[a]) for a in _axes), axis=1)
+        best = others.loc[others["_dist"].idxmin()]
+        rival = others.loc[others["_dist"].idxmax()]
+        best_animal = MBTI_ANIMAL_NAMES.get(best["MBTI"], "")
+        rival_animal = MBTI_ANIMAL_NAMES.get(rival["MBTI"], "")
+
+        st.markdown(f"""
+        <div style="display:flex;gap:8px;margin:10px 0;">
+            <div style="flex:1;background:rgba(39,174,96,0.13);border-radius:12px;padding:12px 14px;text-align:center;">
+                <div style="font-size:13px;opacity:0.7;">🤝 베프 동네</div>
+                <div style="font-size:17px;font-weight:700;margin:4px 0;">{best["SGG"]} {best["EMD"]}</div>
+                <div style="font-size:13px;opacity:0.8;">{best["MBTI"]} {best_animal}</div>
+            </div>
+            <div style="flex:1;background:rgba(231,76,60,0.13);border-radius:12px;padding:12px 14px;text-align:center;">
+                <div style="font-size:13px;opacity:0.7;">⚡ 라이벌 동네</div>
+                <div style="font-size:17px;font-weight:700;margin:4px 0;">{rival["SGG"]} {rival["EMD"]}</div>
+                <div style="font-size:13px;opacity:0.8;">{rival["MBTI"]} {rival_animal}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         st.markdown('<p class="section-title">동네 성격 분석</p>', unsafe_allow_html=True)
         st.markdown(row["PROFILE_TEXT"])
 
@@ -314,6 +339,26 @@ with tab1:
             f"🤝 {selected_dong} × {c_dong} 궁합 점수",
             f"{compatibility}점",
             help="4축 z-score 거리 기반. 100점에 가까울수록 성격이 유사한 동네.",
+        )
+
+        # MBTI 케미 한줄평
+        my_animal = MBTI_ANIMAL_NAMES.get(mbti, "")
+        c_animal = MBTI_ANIMAL_NAMES.get(c_row["MBTI"], "")
+        if compatibility >= 80:
+            chem_emoji, chem_msg = "💕", f"{my_animal}와 {c_animal}, 찐친 케미! 이사 가도 어색함 ZERO"
+        elif compatibility >= 60:
+            chem_emoji, chem_msg = "😊", f"{my_animal}와 {c_animal}, 서로 다르지만 통하는 부분이 있어요"
+        elif compatibility >= 40:
+            chem_emoji, chem_msg = "🤔", f"{my_animal}와 {c_animal}, 적응 기간이 필요한 사이"
+        elif compatibility >= 20:
+            chem_emoji, chem_msg = "😅", f"{my_animal}와 {c_animal}, 꽤 다른 세계관… 충돌 주의"
+        else:
+            chem_emoji, chem_msg = "🔥", f"{my_animal}와 {c_animal}, 완전 반대! 오히려 끌리는 매력?"
+        st.markdown(
+            f'<div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:14px 18px;'
+            f'margin-top:8px;text-align:center;font-size:16px;">'
+            f'{chem_emoji} <b>{mbti} × {c_row["MBTI"]} 케미:</b> {chem_msg}</div>',
+            unsafe_allow_html=True,
         )
 
 # ════════════════════════════════════════════════════════════════════════════
