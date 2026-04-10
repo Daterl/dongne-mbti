@@ -1069,15 +1069,17 @@ with tab3:
         selected_period = st.selectbox("조회 기간", list(period_options.keys()), index=2, key="t3_period")
         price_df = price_full.tail(period_options[selected_period])
 
-        # X축 라벨: "23년 1월" 형식
         price_df = price_df.copy()
-        price_df["월"] = price_df["YYYYMMDD"].dt.strftime("%y년 %m월").str.replace(" 0", " ", regex=False)
 
         # ── 차트 1: 실거래 평당가 (Altair — 호버 툴팁 + SiS 호환) ──
         st.markdown(f"**📈 실거래 평당가 추이** ({selected_period})")
         nearest = alt.selection_single(nearest=True, on="mouseover", fields=["YYYYMMDD"], empty="none")
         base = alt.Chart(price_df).encode(
-            x=alt.X("YYYYMMDD:T", title="월", axis=alt.Axis(format="%y년 %m월", labelAngle=-45)),
+            x=alt.X("YYYYMMDD:T", title="",
+                     axis=alt.Axis(format="%m월", labelAngle=0,
+                                   formatType="time",
+                                   tickCount="month",
+                                   labelOverlap=True)),
             y=alt.Y("AVG_PRICE:Q", title="평당가 (만원)", scale=alt.Scale(zero=False)),
         )
         line = base.mark_line(color="#60A5FA", strokeWidth=2.5)
@@ -1102,7 +1104,10 @@ with tab3:
             fc_nearest = alt.selection_single(nearest=True, on="mouseover", fields=["TS"], empty="none")
             # 신뢰구간 밴드
             band = alt.Chart(forecast_df).mark_area(opacity=0.2, color="#F87171").encode(
-                x=alt.X("TS:T", title="월", axis=alt.Axis(format="%y년 %m월", labelAngle=-45)),
+                x=alt.X("TS:T", title="",
+                         axis=alt.Axis(format="%m월", labelAngle=0,
+                                       formatType="time",
+                                       labelOverlap=True)),
                 y=alt.Y("LOWER_BOUND:Q", title="예측 평당가 (만원)", scale=alt.Scale(zero=False)),
                 y2="UPPER_BOUND:Q",
             )
