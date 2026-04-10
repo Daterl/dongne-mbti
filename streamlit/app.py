@@ -318,6 +318,102 @@ st.markdown("""
     margin: 0 10px;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
+
+/* ── 탭 헤더 ── */
+.tab-header {
+    margin-bottom: 16px;
+}
+.tab-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+.tab-header p {
+    font-size: 14px;
+    opacity: 0.55;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* ── 채팅 메시지 ── */
+.chat-msg {
+    padding: 12px 16px;
+    border-radius: 16px;
+    margin-bottom: 10px;
+    font-size: 15px;
+    line-height: 1.6;
+}
+.chat-msg-user {
+    background: linear-gradient(135deg, #2563EB, #3B82F6);
+    color: white;
+    margin-left: 20%;
+    border-bottom-right-radius: 4px;
+}
+.chat-msg-ai {
+    background: rgba(0,0,0,0.04);
+    border: 1px solid rgba(0,0,0,0.06);
+    margin-right: 20%;
+    border-bottom-left-radius: 4px;
+}
+
+/* ── 추천 질문 그리드 ── */
+.suggestion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+}
+.suggestion-card {
+    background: rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    line-height: 1.4;
+}
+.suggestion-card:hover {
+    background: rgba(37,99,235,0.08);
+    border-color: rgba(37,99,235,0.2);
+    transform: translateY(-1px);
+}
+
+/* ── 빈 상태 ── */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    opacity: 0.5;
+}
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+.empty-state-text {
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+/* ── 인포 카드 ── */
+.info-card {
+    background: linear-gradient(135deg, rgba(37,99,235,0.05), rgba(59,130,246,0.08));
+    border: 1px solid rgba(37,99,235,0.12);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* ── 메트릭 강조 ── */
+.metric-highlight {
+    background: linear-gradient(135deg, rgba(0,0,0,0.02), rgba(0,0,0,0.04));
+    border-radius: 12px;
+    padding: 14px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.05);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -788,12 +884,17 @@ def _search_and_respond(query: str, history: list = None) -> tuple:
 
 
 with tab2:
-    st.markdown("### 💬 자연어로 동네 찾기")
-    st.caption("🔍 Cortex Search (하이브리드 벡터+키워드 검색) + AI_COMPLETE — 서초·영등포·중구 118개 동")
-    st.info(
-        "**작동 방식**: 질문 → Snowflake Cortex Search로 관련 동네 프로필 검색 → "
-        f"AI({MODEL_PRIMARY})가 검색 결과를 바탕으로 맞춤 답변 생성",
-        icon="🤖",
+    st.markdown("""
+    <div class="tab-header">
+        <h3>💬 자연어로 동네 찾기</h3>
+        <p>Cortex Search + AI가 118개 동에서 딱 맞는 동네를 찾아드려요</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="info-card">'
+        f'🔍 <b>작동 방식</b>: 질문 → Cortex Search로 관련 동네 검색 → '
+        f'AI({MODEL_PRIMARY})가 맞춤 답변 생성</div>',
+        unsafe_allow_html=True,
     )
 
     if "messages" not in st.session_state:
@@ -817,9 +918,16 @@ with tab2:
 
     # ── 대화 히스토리 출력 ──
     for msg in st.session_state.messages:
-        icon = "🧑" if msg["role"] == "user" else "🤖"
-        st.markdown(f"**{icon}** {msg['content']}")
-        st.divider()
+        if msg["role"] == "user":
+            st.markdown(
+                f'<div class="chat-msg chat-msg-user">{msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div class="chat-msg chat-msg-ai">🤖 {msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
 
     # ── 채팅 입력 (Enter 전송 + 전송 후 자동 비우기) ──
     prompt = st.session_state.pop("_pending", None)
@@ -875,7 +983,12 @@ def load_forecast(sgg: str, emd: str):
         return pd.DataFrame()
 
 with tab3:
-    st.markdown("### 📊 이사 예보 — 시세 트렌드 & ML 예측")
+    st.markdown("""
+    <div class="tab-header">
+        <h3>📊 이사 예보 — 시세 트렌드 & ML 예측</h3>
+        <p>아파트 실거래가 추이와 AI 기반 향후 3개월 가격 예측</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_t1, col_t2 = st.columns([1, 2])
     with col_t1:
@@ -1004,10 +1117,17 @@ with tab3:
 # 탭 4: 데이터 탐색 — Cortex Analyst (NL2SQL)
 # ════════════════════════════════════════════════════════════════════════════
 with tab4:
-    st.markdown("### 🔬 Cortex Analyst — 자연어로 MBTI 데이터 조회")
-    st.caption(
-        "Snowflake Cortex Analyst가 자연어 질문을 SQL로 자동 변환하여 정형 데이터를 조회합니다. "
-        "Cortex Search(비정형 텍스트 검색)와 달리, 점수·통계·순위 등 수치 데이터 질의에 최적화."
+    st.markdown("""
+    <div class="tab-header">
+        <h3>🔬 Cortex Analyst — 데이터 탐색</h3>
+        <p>자연어 질문을 SQL로 자동 변환하여 MBTI 점수·통계·순위를 조회합니다</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="info-card">'
+        '📊 <b>Cortex Analyst</b>: 텍스트 검색(탭2)과 달리, 수치 데이터를 정확하게 조회합니다. '
+        '"TOP 3", "평균", "비교" 같은 데이터 질의에 최적화.</div>',
+        unsafe_allow_html=True,
     )
 
     _ANALYST_SEMANTIC_MODEL = (
@@ -1024,22 +1144,31 @@ with tab4:
     # 예시 질문 버튼
     if not st.session_state.get("analyst_history"):
         st.markdown("**예시 질문:**")
-        ex_cols = st.columns(len(_ANALYST_EXAMPLES))
+        ex_row1 = st.columns(3)
+        ex_row2 = st.columns(2)
         for i, ex in enumerate(_ANALYST_EXAMPLES):
-            if ex_cols[i].button(ex, key=f"analyst_ex_{i}", use_container_width=True):
+            col = ex_row1[i] if i < 3 else ex_row2[i - 3]
+            if col.button(ex, key=f"analyst_ex_{i}", use_container_width=True):
                 st.session_state["_analyst_pending"] = ex
                 st.experimental_rerun()
 
     # 대화 히스토리 출력
     for msg in st.session_state.get("analyst_history", []):
-        icon = "🧑" if msg["role"] == "user" else "📊"
-        st.markdown(f"**{icon}** {msg['content']}")
-        if msg.get("sql"):
-            with st.expander("생성된 SQL 보기"):
-                st.code(msg["sql"], language="sql")
-        if msg.get("data") is not None:
-            st.dataframe(msg["data"], use_container_width=True)
-        st.divider()
+        if msg["role"] == "user":
+            st.markdown(
+                f'<div class="chat-msg chat-msg-user">{msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div class="chat-msg chat-msg-ai">📊 {msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
+            if msg.get("sql"):
+                with st.expander("생성된 SQL 보기"):
+                    st.code(msg["sql"], language="sql")
+            if msg.get("data") is not None:
+                st.dataframe(msg["data"], use_container_width=True)
 
     # 입력 폼
     analyst_prompt = st.session_state.pop("_analyst_pending", None)
