@@ -8,6 +8,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from snowflake.snowpark.context import get_active_session
 
+# ── AI 모델 설정 ──────────────────────────────────────────────────────────────
+# 모델명을 상수로 분리 → 업그레이드 시 여기만 변경
+MODEL_PRIMARY = "mistral-large2"      # 주 모델: 고성능 자연어 응답
+MODEL_FALLBACK = "snowflake-arctic"   # 폴백 모델: Primary 실패 시
+
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
     """#RRGGBB → rgba(r,g,b,alpha) 변환 (plotly 구버전 호환)."""
@@ -57,7 +62,8 @@ def load_mbti_result():
 def load_profiles():
     return session.sql("""
         SELECT SGG, EMD, MBTI, PROFILE_TEXT, CHARACTER_SUMMARY,
-               EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE
+               EI_SCORE, SN_SCORE, TF_SCORE, JP_SCORE,
+               NEIGHBORHOOD_TYPE, SENTIMENT_SCORE
         FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES
         ORDER BY SGG, EMD
     """).to_pandas()
@@ -177,6 +183,30 @@ with tab1:
             <div class="character-summary">"{row['CHARACTER_SUMMARY']}"</div>
         </div>
         """, unsafe_allow_html=True)
+
+        # AI_CLASSIFY 결과: 동네 유형 뱃지
+        neighborhood_type = row.get("NEIGHBORHOOD_TYPE")
+        if neighborhood_type and str(neighborhood_type) not in ("None", "nan", ""):
+            st.markdown(
+                f'<span style="background:#f0f2f6;border-radius:20px;padding:4px 14px;'
+                f'font-size:13px;font-weight:600;color:#444;">🏷️ {neighborhood_type}</span>',
+                unsafe_allow_html=True,
+            )
+
+        # AI_SENTIMENT 결과: 감성 점수
+        sentiment = row.get("SENTIMENT_SCORE")
+        if sentiment is not None and str(sentiment) not in ("None", "nan", ""):
+            try:
+                s_val = float(sentiment)
+                s_label = "긍정적" if s_val > 0.1 else ("부정적" if s_val < -0.1 else "중립적")
+                s_color = "#27ae60" if s_val > 0.1 else ("#e74c3c" if s_val < -0.1 else "#888")
+                st.markdown(
+                    f'<span style="color:{s_color};font-size:13px;font-weight:600;">'
+                    f'💬 AI 감성 분석: {s_label} ({s_val:+.2f})</span>',
+                    unsafe_allow_html=True,
+                )
+            except (ValueError, TypeError):
+                pass
 
         st.markdown('<p class="section-title">동네 성격 분석</p>', unsafe_allow_html=True)
         st.markdown(row["PROFILE_TEXT"])
@@ -383,7 +413,7 @@ def _search_and_respond(query: str) -> tuple:
     try:
         answer = session.sql(f"""
             SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                'mistral-large2',
+                '{MODEL_PRIMARY}',
                 ARRAY_CONSTRUCT(
                     OBJECT_CONSTRUCT('role', 'system', 'content', '{system_msg}'),
                     OBJECT_CONSTRUCT('role', 'user',   'content', '{user_msg}')
@@ -391,11 +421,11 @@ def _search_and_respond(query: str) -> tuple:
             )
         """).collect()[0][0]
     except Exception as e:
-        # mistral 실패 시 arctic으로 폴백
+        # Primary 실패 시 Fallback 모델로 재시도
         try:
             fallback_prompt = f"{system_msg}\n\n{user_msg}".replace("'", "''")
             answer = session.sql(
-                f"SELECT SNOWFLAKE.CORTEX.COMPLETE('snowflake-arctic', '{fallback_prompt}')"
+                f"SELECT SNOWFLAKE.CORTEX.COMPLETE('{MODEL_FALLBACK}', '{fallback_prompt}')"
             ).collect()[0][0]
         except Exception as e2:
             answer = f"응답 생성 오류: {str(e2)[:100]}"
@@ -405,7 +435,12 @@ def _search_and_respond(query: str) -> tuple:
 
 with tab2:
     st.markdown("### 💬 자연어로 동네 찾기")
-    st.caption("Cortex Search + AI_COMPLETE — 서초·영등포·중구 118개 동")
+    st.caption("🔍 Cortex Search (하이브리드 벡터+키워드 검색) + AI_COMPLETE — 서초·영등포·중구 118개 동")
+    st.info(
+        "**작동 방식**: 질문 → Snowflake Cortex Search로 관련 동네 프로필 검색 → "
+        f"AI({MODEL_PRIMARY})가 검색 결과를 바탕으로 맞춤 답변 생성",
+        icon="🤖",
+    )
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -599,7 +634,7 @@ with tab3:
                     )
                     forecast = session.sql(f"""
                         SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                            'mistral-large2',
+                            '{MODEL_PRIMARY}',
                             '{forecast_prompt.replace("'", "''")}'
                         ) AS FORECAST
                     """).collect()[0]["FORECAST"]
