@@ -1030,13 +1030,15 @@ with tab3:
         y_min = min(all_prices) * 0.92
         y_max = max(all_prices) * 1.08
 
-        # 실적 데이터
+        # 실적 데이터 — 면적 채우기 + 굵은 선
         fig3.add_trace(go.Scatter(
             x=price_df["YYYYMMDD"],
             y=price_df["AVG_PRICE"],
             mode="lines+markers",
-            line=dict(color="#2874A6", width=2.5),
-            marker=dict(size=5),
+            line=dict(color="#60A5FA", width=3),
+            marker=dict(size=6, color="#60A5FA"),
+            fill="tozeroy",
+            fillcolor="rgba(96,165,250,0.12)",
             name="실거래 평당가",
         ))
 
@@ -1048,7 +1050,7 @@ with tab3:
                 x=list(forecast_df["TS"]) + list(forecast_df["TS"][::-1]),
                 y=list(forecast_df["UPPER_BOUND"]) + list(forecast_df["LOWER_BOUND"][::-1]),
                 fill="toself",
-                fillcolor="rgba(231,76,60,0.15)",
+                fillcolor="rgba(248,113,113,0.25)",
                 line=dict(color="rgba(0,0,0,0)"),
                 name="예측 범위 (90%)",
                 hoverinfo="skip",
@@ -1058,18 +1060,22 @@ with tab3:
                 x=forecast_df["TS"],
                 y=forecast_df["FORECAST_PRICE"],
                 mode="lines+markers",
-                line=dict(color="#E74C3C", width=2, dash="dash"),
-                marker=dict(size=6, symbol="diamond"),
+                line=dict(color="#F87171", width=3, dash="dash"),
+                marker=dict(size=8, symbol="diamond", color="#F87171"),
                 name="ML 예측",
             ))
 
         fig3.update_layout(
             xaxis_title="월",
             yaxis_title="평당가 (만원)",
-            yaxis=dict(range=[y_min, y_max]),
+            yaxis=dict(range=[y_min, y_max], gridcolor="rgba(255,255,255,0.1)"),
+            xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
             hovermode="x unified",
             height=420,
             margin=dict(t=20, b=40, l=60, r=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(255,255,255,0.7)"),
             legend=dict(
                 orientation="h",
                 yanchor="top",
