@@ -378,8 +378,8 @@ def _cortex_search(query: str, sgg_filter: str = None) -> list:
         return []
 
 
-def _search_and_respond(query: str) -> tuple:
-    """Cortex Search → AI_COMPLETE(mistral-large2) 조합으로 자연어 답변 생성."""
+def _search_and_respond(query: str, history: list = None) -> tuple:
+    """Cortex Search → AI_COMPLETE(mistral-large2) 멀티턴 대화 답변 생성."""
     sgg = _extract_sgg(query)
     results = _cortex_search(query, sgg_filter=sgg)
 
@@ -393,8 +393,12 @@ def _search_and_respond(query: str) -> tuple:
         context = "검색 결과 없음"
         no_data = True
 
-    system_msg = "당신은 서울 동네 MBTI 전문가입니다. 주어진 데이터만 기반으로 답변하고, 데이터에 없는 내용은 지어내지 마세요."
-    user_msg = (
+    system_msg = (
+        "당신은 서울 동네 MBTI 전문가입니다. "
+        "주어진 데이터만 기반으로 답변하고, 데이터에 없는 내용은 지어내지 마세요. "
+        "이전 대화 맥락을 유지하며 자연스럽게 이어서 답변하세요."
+    )
+    current_user_msg = (
         f"질문: {query}\n\n"
         + (
             f"검색된 동네 데이터:\n{context}\n\n"
@@ -406,24 +410,36 @@ def _search_and_respond(query: str) -> tuple:
         )
     )
 
-    # SQL 인젝션 방지
-    system_msg = system_msg.replace("'", "\\'")
-    user_msg = user_msg.replace("'", "\\'")
+    # 멀티턴: 이전 대화 히스토리 → ARRAY_CONSTRUCT에 순서대로 삽입
+    history_sql_parts = []
+    for msg in (history or []):
+        role = "user" if msg["role"] == "user" else "assistant"
+        content = msg["content"].replace("'", "\\'")
+        history_sql_parts.append(
+            f"OBJECT_CONSTRUCT('role', '{role}', 'content', '{content}')"
+        )
+
+    system_msg_esc = system_msg.replace("'", "\\'")
+    current_user_msg_esc = current_user_msg.replace("'", "\\'")
+
+    all_messages = (
+        [f"OBJECT_CONSTRUCT('role', 'system', 'content', '{system_msg_esc}')"]
+        + history_sql_parts
+        + [f"OBJECT_CONSTRUCT('role', 'user', 'content', '{current_user_msg_esc}')"]
+    )
+    messages_sql = ", ".join(all_messages)
 
     try:
         answer = session.sql(f"""
             SELECT SNOWFLAKE.CORTEX.COMPLETE(
                 '{MODEL_PRIMARY}',
-                ARRAY_CONSTRUCT(
-                    OBJECT_CONSTRUCT('role', 'system', 'content', '{system_msg}'),
-                    OBJECT_CONSTRUCT('role', 'user',   'content', '{user_msg}')
-                )
+                ARRAY_CONSTRUCT({messages_sql})
             )
         """).collect()[0][0]
     except Exception as e:
-        # Primary 실패 시 Fallback 모델로 재시도
+        # Primary 실패 시 Fallback 모델로 재시도 (히스토리 없이 단순 호출)
         try:
-            fallback_prompt = f"{system_msg}\n\n{user_msg}".replace("'", "''")
+            fallback_prompt = f"{system_msg}\n\n{current_user_msg}".replace("'", "''")
             answer = session.sql(
                 f"SELECT SNOWFLAKE.CORTEX.COMPLETE('{MODEL_FALLBACK}', '{fallback_prompt}')"
             ).collect()[0][0]
@@ -490,7 +506,9 @@ with tab2:
             st.session_state.messages.append({"role": "assistant", "content": unsupported})
         else:
             with st.spinner("동네를 찾고 있어요..."):
-                answer_text, _ = _search_and_respond(prompt)
+                # 현재 질문 제외한 이전 대화만 히스토리로 전달 (마지막 user 메시지는 함수 내에서 처리)
+                prev_history = st.session_state.messages[:-1]
+                answer_text, _ = _search_and_respond(prompt, history=prev_history)
             st.session_state.messages.append({"role": "assistant", "content": answer_text})
         st.experimental_rerun()
 
