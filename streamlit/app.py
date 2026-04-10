@@ -1015,20 +1015,28 @@ with tab3:
             forecast_df["LOWER_BOUND"] = pd.to_numeric(forecast_df["LOWER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
             forecast_df["UPPER_BOUND"] = pd.to_numeric(forecast_df["UPPER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
 
+        # 최근 36개월만 표시 (트렌드 가독성)
+        price_full = price_df.copy()
+        price_df = price_df.tail(36)
+
         # ── 통합 시세 차트 (실적 + ML 예측) ──
         fig3 = go.Figure()
 
-        # Y축 범위: 데이터 범위에 맞게 설정 (0부터 시작하지 않음)
-        y_min = price_df["AVG_PRICE"].min() * 0.90
-        y_max = price_df["AVG_PRICE"].max() * 1.10
+        # Y축 범위: 표시 데이터 범위에 맞게 설정
+        all_prices = list(price_df["AVG_PRICE"])
+        if has_forecast:
+            all_prices += list(forecast_df["UPPER_BOUND"].dropna())
+            all_prices += list(forecast_df["LOWER_BOUND"].dropna())
+        y_min = min(all_prices) * 0.92
+        y_max = max(all_prices) * 1.08
 
         # 실적 데이터
         fig3.add_trace(go.Scatter(
             x=price_df["YYYYMMDD"],
             y=price_df["AVG_PRICE"],
             mode="lines+markers",
-            line=dict(color="#2874A6", width=2),
-            marker=dict(size=4),
+            line=dict(color="#2874A6", width=2.5),
+            marker=dict(size=5),
             name="실거래 평당가",
         ))
 
@@ -1079,8 +1087,8 @@ with tab3:
             delta = latest - prev
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("최근 평당가", f"{latest:,.0f}만원", f"{delta:+,.0f}만원")
-            m2.metric("기간", f"{price_df['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_df['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}")
-            m3.metric("데이터", f"{len(price_df)}개월")
+            m2.metric("차트 기간", f"{price_df['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_df['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}")
+            m3.metric("전체 데이터", f"{len(price_full)}개월", help=f"전체: {price_full['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_full['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}, 차트는 최근 36개월")
             if has_forecast:
                 pred_latest = forecast_df.iloc[-1]["FORECAST_PRICE"]
                 pred_delta = pred_latest - latest
