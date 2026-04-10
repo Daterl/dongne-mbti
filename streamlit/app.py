@@ -240,10 +240,14 @@ with tab1:
 
         # 4축 수치 메트릭
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("E/I", f"{row['EI_SCORE']:+.2f}", help="양수=외향(E), 음수=내향(I)")
-        c2.metric("S/N", f"{row['SN_SCORE']:+.2f}", help="양수=실용(S), 음수=문화(N)")
-        c3.metric("T/F", f"{row['TF_SCORE']:+.2f}", help="양수=이성/부유(T), 음수=감성/서민(F)")
-        c4.metric("J/P", f"{row['JP_SCORE']:+.2f}", help="양수=변화(P), 음수=안정(J)")
+        ei_dir = "→ E 외향" if row["EI_SCORE"] >= 0 else "→ I 내향"
+        sn_dir = "→ S 실용" if row["SN_SCORE"] >= 0 else "→ N 문화"
+        tf_dir = "→ T 이성" if row["TF_SCORE"] >= 0 else "→ F 감성"
+        jp_dir = "→ P 변화" if row["JP_SCORE"] >= 0 else "→ J 안정"
+        c1.metric(f"E/I {ei_dir}", f"{row['EI_SCORE']:+.2f}")
+        c2.metric(f"S/N {sn_dir}", f"{row['SN_SCORE']:+.2f}")
+        c3.metric(f"T/F {tf_dir}", f"{row['TF_SCORE']:+.2f}")
+        c4.metric(f"J/P {jp_dir}", f"{row['JP_SCORE']:+.2f}")
 
     # ── 동네 비교 ──
     st.divider()
