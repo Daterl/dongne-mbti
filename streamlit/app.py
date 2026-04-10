@@ -197,17 +197,18 @@ st.markdown("""
     box-shadow: 0 6px 20px rgba(0,0,0,0.08);
 }
 .bff-rival-img {
+    width: 100%;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin: 6px 0;
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
-    width: 52px;
-    height: 52px;
-    overflow: hidden;
-    display: inline-block;
 }
 .bff-rival-img img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    max-width: 72px;
+    max-height: 72px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
 }
 
 /* ── 순위 바 ── */
