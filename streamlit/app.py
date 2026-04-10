@@ -1075,7 +1075,7 @@ with tab3:
 
         # ── 차트 1: 실거래 평당가 (Altair — 호버 툴팁 + SiS 호환) ──
         st.markdown(f"**📈 실거래 평당가 추이** ({selected_period})")
-        nearest = alt.selection_point(nearest=True, on="pointerover", fields=["YYYYMMDD"], empty=False)
+        nearest = alt.selection_single(nearest=True, on="mouseover", fields=["YYYYMMDD"], empty="none")
         base = alt.Chart(price_df).encode(
             x=alt.X("YYYYMMDD:T", title="월", axis=alt.Axis(format="%y년 %m월", labelAngle=-45)),
             y=alt.Y("AVG_PRICE:Q", title="평당가 (만원)", scale=alt.Scale(zero=False)),
@@ -1087,7 +1087,7 @@ with tab3:
                 alt.Tooltip("YYYYMMDD:T", title="날짜", format="%Y년 %m월"),
                 alt.Tooltip("AVG_PRICE:Q", title="평당가", format=",.0f"),
             ],
-        ).add_params(nearest)
+        ).add_selection(nearest)
         rule = base.mark_rule(color="gray", strokeDash=[4, 4]).encode(
             opacity=alt.condition(nearest, alt.value(0.5), alt.value(0)),
         ).transform_filter(nearest)
@@ -1099,7 +1099,7 @@ with tab3:
         # ── 차트 2: ML 예측 (Altair — SiS 호환) ──
         if has_forecast:
             st.markdown("**🔮 ML 가격 예측** (향후 3개월)")
-            fc_nearest = alt.selection_point(nearest=True, on="pointerover", fields=["TS"], empty=False)
+            fc_nearest = alt.selection_single(nearest=True, on="mouseover", fields=["TS"], empty="none")
             # 신뢰구간 밴드
             band = alt.Chart(forecast_df).mark_area(opacity=0.2, color="#F87171").encode(
                 x=alt.X("TS:T", title="월", axis=alt.Axis(format="%y년 %m월", labelAngle=-45)),
@@ -1124,7 +1124,7 @@ with tab3:
                     alt.Tooltip("LOWER_BOUND:Q", title="하한", format=",.0f"),
                     alt.Tooltip("UPPER_BOUND:Q", title="상한", format=",.0f"),
                 ],
-            ).add_params(fc_nearest)
+            ).add_selection(fc_nearest)
             chart2 = (band + fc_line + fc_points).properties(height=280).configure_view(strokeWidth=0)
             st.altair_chart(chart2, use_container_width=True)
 
