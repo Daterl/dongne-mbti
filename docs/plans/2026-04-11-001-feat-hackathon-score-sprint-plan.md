@@ -1,7 +1,7 @@
 ---
 title: dongne-mbti 해커톤 점수 개선 스프린트 (78→82~83/90)
 type: feat
-status: active
+status: completed
 date: 2026-04-11
 origin: evaluation-report-2026-04-11-no-agent.md
 ---
@@ -369,7 +369,7 @@ Units 1~5는 서로 독립이며 순서와 무관하게 병렬 진행 가능. RO
 
 ---
 
-- [ ] **Unit 6: git push + CoCo fetch + 배포 검증 스크린샷 (R1 재검증, R7)**
+- [x] **Unit 6: git push + CoCo fetch + 배포 검증 스크린샷 (R1 재검증, R7)** — 완료 (2026-04-11)
 
 **Goal:** Units 1~5의 모든 변경을 git으로 push하고, CoCo에서 `ALTER GIT REPOSITORY ... FETCH` + SiS 재배포를 유도하며, `SHOW STREAMLITS` / `SHOW CORTEX SEARCH SERVICES` / `SHOW DYNAMIC TABLES` 3건 실행 결과를 스크린샷으로 확보한다.
 
