@@ -780,18 +780,26 @@ import _snowflake
 import json as _json
 import re as _re
 
-_SUPPORTED_SGG = {"서초구", "영등포구", "중구"}
+@st.cache_data(ttl=3600)
+def _get_supported_sgg() -> frozenset:
+    """DONG_PROFILES에서 지원 구 목록을 런타임 조회 → 구 추가 시 코드 수정 불필요."""
+    rows = session.sql(
+        "SELECT DISTINCT SGG FROM DONGNE_MBTI.PUBLIC.DONG_PROFILES ORDER BY SGG"
+    ).to_pandas()
+    return frozenset(rows["SGG"].tolist())
 
 
 def _check_unsupported_district(query: str):
     """지원 범위 외 구 언급 감지 → 안내 메시지 반환, 없으면 None."""
+    supported = _get_supported_sgg()
     found = _re.findall(r'\S+구', query)
-    unsupported = [s for s in found if s not in _SUPPORTED_SGG]
+    unsupported = [s for s in found if s not in supported]
     if unsupported:
         names = "·".join(unsupported)
+        supported_str = "·".join(sorted(supported))
         return (
             f"죄송해요! **{names}**는 현재 서비스 범위에 없어요. "
-            f"동네 MBTI는 **서초구·영등포구·중구** 3개 구만 지원합니다. "
+            f"동네 MBTI는 **{supported_str}** {len(supported)}개 구만 지원합니다. "
             f"이 중 하나로 다시 질문해 주세요! 😊"
         )
     return None
@@ -799,7 +807,7 @@ def _check_unsupported_district(query: str):
 
 def _extract_sgg(query: str):
     """쿼리에서 구 이름 감지."""
-    for sgg in _SUPPORTED_SGG:
+    for sgg in _get_supported_sgg():
         if sgg in query:
             return sgg
     return None
