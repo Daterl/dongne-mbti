@@ -2,6 +2,10 @@
 -- 05_dong_profiles_sentiment.sql
 -- 이슈 #8: AI_SENTIMENT로 PROFILE_TEXT 감성 점수 추가
 -- =============================================================
+-- 병렬 경로 (선언적 파이프라인): sql/schema/11_dynamic_table_profiles.sql
+-- → Dynamic Table DONG_PROFILES_ENRICHED 가 동일한 SNOWFLAKE.CORTEX.SENTIMENT
+--   함수를 SELECT 절 내부에 내장하여 배치 UPDATE 경로와 의도적으로 공존함.
+-- =============================================================
 
 -- DONG_PROFILES에 SENTIMENT_SCORE 컬럼 추가
 ALTER TABLE DONGNE_MBTI.PUBLIC.DONG_PROFILES
