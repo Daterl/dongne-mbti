@@ -11,9 +11,10 @@ from snowflake.snowpark.context import get_active_session
 from animals import MBTI_ANIMALS, MBTI_ANIMAL_NAMES
 
 # ── AI 모델 설정 ──────────────────────────────────────────────────────────────
-# AISQL 신함수 AI_COMPLETE + 'auto' 모델 사용 → Snowflake가 최적 모델 런타임 선택 (2026 모델 확장성)
-MODEL_PRIMARY = "auto"                # 주 모델: Snowflake가 최적 모델 자동 선택
-MODEL_FALLBACK = "snowflake-arctic"   # 폴백 모델: Primary 실패 시 명시 모델
+# AISQL 신함수 AI_COMPLETE + Meta Llama 3.3 70B (2026-04 기준 이 리전 최신 오픈 모델)
+# 'auto' 셀렉터는 본 계정/리전에서 미지원 → 최신 명시 모델로 고정, 업그레이드는 이 상수만 교체
+MODEL_PRIMARY = "llama3.3-70b"        # 주 모델: Meta Llama 3.3 70B, 최신 오픈 모델
+MODEL_FALLBACK = "snowflake-arctic"   # 폴백 모델: Primary 실패 시 Snowflake 네이티브
 
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -850,7 +851,7 @@ def _cortex_search(query: str, sgg_filter: str = None) -> list:
 
 
 def _search_and_respond(query: str, history: list = None) -> tuple:
-    """Cortex Search → AI_COMPLETE('auto') 멀티턴 대화 답변 생성."""
+    """Cortex Search → AI_COMPLETE(llama3.3-70b) 멀티턴 대화 답변 생성."""
     sgg = _extract_sgg(query)
     results = _cortex_search(query, sgg_filter=sgg)
 
