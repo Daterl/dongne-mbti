@@ -224,7 +224,7 @@ Units 1~5는 서로 독립이며 순서와 무관하게 병렬 진행 가능. RO
 
 ---
 
-- [ ] **Unit 2: `DONG_PROFILES_ENRICHED` Dynamic Table 신설 (S1 +1, A2 +1)**
+- [x] **Unit 2: `DONG_PROFILES_ENRICHED` Dynamic Table 신설 (S1 +1, A2 +1)** — 완료 (2026-04-11, commit 635ffd6)
 
 **Goal:** `DONG_PROFILES`를 소스로 하는 Dynamic Table `DONG_PROFILES_ENRICHED`를 생성해 **legacy `SNOWFLAKE.CORTEX.SENTIMENT(PROFILE_TEXT)`** 호출을 SELECT 절에 내장한다. 기존 배치 UPDATE 경로(`05_dong_profiles_sentiment.sql:12`)와 **동일 함수·동일 FLOAT 스키마**로 병렬 공존시켜 심사 시 "선언적 파이프라인 대 배치 UPDATE" 1:1 비교 내러티브를 확보한다.
 
@@ -269,7 +269,7 @@ Units 1~5는 서로 독립이며 순서와 무관하게 병렬 진행 가능. RO
 
 ---
 
-- [ ] **Unit 3: `docs/project-plan.md` C1·C2 레퍼런스 보강 (C1 +0.5, C2 +0.5)**
+- [x] **Unit 3: `docs/project-plan.md` C1·C2 레퍼런스 보강 (C1 +0.5, C2 +0.5)** — 완료 (2026-04-11, commit 55381ac)
 
 **Goal:** 경쟁 서비스 차별점 주장과 거시 통계에 "정량·질적 근거"를 1줄씩 추가해 C1·C2 만점 조건을 충족한다.
 
@@ -299,7 +299,7 @@ Units 1~5는 서로 독립이며 순서와 무관하게 병렬 진행 가능. RO
 
 ---
 
-- [ ] **Unit 4: `_SUPPORTED_SGG` 런타임 조회 전환 (A3 +0.5)**
+- [x] **Unit 4: `_SUPPORTED_SGG` 런타임 조회 전환 (A3 +0.5)** — 완료 (2026-04-11, commit c1f428c)
 
 **Goal:** `streamlit/app.py:782` 하드코딩 집합을 `SELECT DISTINCT SGG FROM DONG_PROFILES` 런타임 조회로 전환해 데이터 확장 시 코드 수정이 필요 없도록 한다.
 
@@ -334,7 +334,7 @@ Units 1~5는 서로 독립이며 순서와 무관하게 병렬 진행 가능. RO
 
 ---
 
-- [ ] **Unit 5: `sql/eda/06_token_cost_estimate.sql` 신설 (R2 +0.5)**
+- [x] **Unit 5: `sql/eda/06_token_cost_estimate.sql` 신설 (R2 +0.5)** — 완료 (2026-04-11, commit cc46b82)
 
 **Goal:** `AI_COUNT_TOKENS`를 활용해 Tab2의 Cortex Search + AI_COMPLETE 호출당 평균 토큰 수·비용을 사전 추정하는 쿼리 1건을 EDA 파일로 남긴다.
 
