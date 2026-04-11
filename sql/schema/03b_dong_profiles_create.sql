@@ -63,9 +63,10 @@ FROM DONG_PROFILES;
 -- Step 2: CHARACTER_SUMMARY 생성 (AI_COMPLETE)
 -- 한 줄 성격 요약 (Cortex Search ATTRIBUTES용)
 -- ========================================
+-- AISQL 신함수 AI_COMPLETE + 'auto' 모델 (2026 모델 확장성)
 UPDATE DONG_PROFILES
-SET CHARACTER_SUMMARY = SNOWFLAKE.CORTEX.COMPLETE(
-    'snowflake-arctic',
+SET CHARACTER_SUMMARY = AI_COMPLETE(
+    'auto',
     '서울 ' || SGG || ' ' || EMD || '동의 MBTI는 ' || MBTI || '입니다. ' ||
     '다음 특성을 가진 이 동네를 한 문장(30자 이내)으로 매력적으로 표현해주세요: ' ||
     CASE WHEN EI_SCORE > 0 THEN '활기찬 유동인구' ELSE '조용한 주거 분위기' END || ', ' ||
@@ -79,9 +80,10 @@ SET CHARACTER_SUMMARY = SNOWFLAKE.CORTEX.COMPLETE(
 -- Step 3: PROFILE_TEXT 생성 (AI_COMPLETE)
 -- 상세 동네 프로필 (Cortex Agent search_dongne 검색 대상)
 -- ========================================
+-- AISQL 신함수 AI_COMPLETE + 'auto' 모델 (2026 모델 확장성)
 UPDATE DONG_PROFILES
-SET PROFILE_TEXT = SNOWFLAKE.CORTEX.COMPLETE(
-    'snowflake-arctic',
+SET PROFILE_TEXT = AI_COMPLETE(
+    'auto',
     '서울 ' || SGG || ' ' || EMD || '의 동네 MBTI 성격 프로필을 작성해주세요. ' ||
     'MBTI 유형: ' || MBTI || '\n' ||
     '4축 점수:\n' ||

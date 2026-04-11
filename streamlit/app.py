@@ -11,9 +11,9 @@ from snowflake.snowpark.context import get_active_session
 from animals import MBTI_ANIMALS, MBTI_ANIMAL_NAMES
 
 # ── AI 모델 설정 ──────────────────────────────────────────────────────────────
-# 모델명을 상수로 분리 → 업그레이드 시 여기만 변경
-MODEL_PRIMARY = "mistral-large2"      # 주 모델: 고성능 자연어 응답
-MODEL_FALLBACK = "snowflake-arctic"   # 폴백 모델: Primary 실패 시
+# AISQL 신함수 AI_COMPLETE + 'auto' 모델 사용 → Snowflake가 최적 모델 런타임 선택 (2026 모델 확장성)
+MODEL_PRIMARY = "auto"                # 주 모델: Snowflake가 최적 모델 자동 선택
+MODEL_FALLBACK = "snowflake-arctic"   # 폴백 모델: Primary 실패 시 명시 모델
 
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -850,7 +850,7 @@ def _cortex_search(query: str, sgg_filter: str = None) -> list:
 
 
 def _search_and_respond(query: str, history: list = None) -> tuple:
-    """Cortex Search → AI_COMPLETE(mistral-large2) 멀티턴 대화 답변 생성."""
+    """Cortex Search → AI_COMPLETE('auto') 멀티턴 대화 답변 생성."""
     sgg = _extract_sgg(query)
     results = _cortex_search(query, sgg_filter=sgg)
 
@@ -902,7 +902,7 @@ def _search_and_respond(query: str, history: list = None) -> tuple:
 
     try:
         answer = session.sql(f"""
-            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+            SELECT AI_COMPLETE(
                 '{MODEL_PRIMARY}',
                 ARRAY_CONSTRUCT({messages_sql})
             )
@@ -912,7 +912,7 @@ def _search_and_respond(query: str, history: list = None) -> tuple:
         try:
             fallback_prompt = f"{system_msg}\n\n{current_user_msg}".replace("'", "''")
             answer = session.sql(
-                f"SELECT SNOWFLAKE.CORTEX.COMPLETE('{MODEL_FALLBACK}', '{fallback_prompt}')"
+                f"SELECT AI_COMPLETE('{MODEL_FALLBACK}', '{fallback_prompt}')"
             ).collect()[0][0]
         except Exception as e2:
             answer = f"응답 생성 오류: {str(e2)[:100]}"
@@ -1167,7 +1167,7 @@ with tab3:
                         f"트렌드 방향과 이사 적합성을 판단해줘."
                     )
                     forecast = session.sql(f"""
-                        SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                        SELECT AI_COMPLETE(
                             '{MODEL_PRIMARY}',
                             '{forecast_prompt.replace("'", "''")}'
                         ) AS FORECAST
