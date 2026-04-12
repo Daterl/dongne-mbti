@@ -18,7 +18,8 @@
 | `2.jpg` | 탭1 — 궁합 비교 29점 (내곡동 ESTJ × 반포동 ISTP 캐릭터 대결) | Slide 10 우측 |
 | `3.jpg` | 탭2 — 멀티턴 3턴 대화 (부유한 동네 → ESTP → 용산구 범위 안내) | Slide 11 좌측 |
 | `tab3-1.png` | 탭3 — 시세 추이 + ML 예측 통합 차트 + 예측 변동률 + 인구 흐름 | Slide 11 우측 |
-| `6.jpg` | 탭4 — Cortex Analyst NL2SQL 결과 테이블 2개 | Slide 12 |
+| `tab3-2.png` | 탭3 — AI 종합 전망 (시세·인구·수급·계절성 교차 분석) | Slide 12 좌측 |
+| `6.jpg` | 탭4 — Cortex Analyst NL2SQL 결과 테이블 2개 | Slide 12 우측 |
 
 ### 3. 아키텍처
 | 파일명 | 사용 슬라이드 |
@@ -197,21 +198,24 @@ Slide 10 — 앱 데모: 동네 카드 (탭 1)
 - 하단 태그: AI_CLASSIFY · AI_SENTIMENT · AI_COMPLETE
 
 
-Slide 11 — 앱 데모: 동네 찾기 & 시세 전망 (탭 2, 3)
-- 제목: "실제 앱 — 자연어 검색 & 이사 예보"
+Slide 11 — 앱 데모: 동네 찾기 & 시세 차트 (탭 2, 3-1)
+- 제목: "실제 앱 — 자연어 검색 & 시세 추이"
 - 2열 레이아웃:
   [좌] 첨부 이미지 3.jpg 삽입
     캡션: "서초구 부유한 동네 → ESTP 매칭 → 용산구 범위 안내 (3턴)"
   [우] 첨부 이미지 tab3-1.png 삽입
-    캡션: "내곡동 시세 추이 + ML 예측 4,307만원(+2.0%) + 인구 순이동 -7,627명"
-- 하단 태그: Cortex Search · ML FORECAST · AI_COMPLETE
+    캡션: "내곡동 시세 추이 + ML 예측 4,307만원(+2.0%) + 순이동 -7,627명"
+- 하단 태그: Cortex Search · ML FORECAST
 
 
-Slide 12 — 앱 데모: 데이터 탐색 (탭 4)
-- 제목: "실제 앱 — NL2SQL 데이터 분석"
-- 전체 이미지: 첨부 이미지 6.jpg 삽입
-- 캡션: "서초구 외향적 동네 TOP 3 / 서초구 부유한 동네 TOP 3 → SQL 자동 변환"
-- 하단: "Cortex Analyst — Semantic Model YAML (5 Tables, 7 Verified Queries)"
+Slide 12 — 앱 데모: AI 종합 전망 & 데이터 탐색 (탭 3-2, 4)
+- 제목: "실제 앱 — AI 이사 전망 & NL2SQL 분석"
+- 2열 레이아웃:
+  [좌] 첨부 이미지 tab3-2.png 삽입
+    캡션: "AI 종합 전망 — 시세·인구·수급·계절성 교차 분석 + 실행 가이드"
+  [우] 첨부 이미지 6.jpg 삽입
+    캡션: "서초구 외향적 동네 TOP 3 → SQL 자동 변환"
+- 하단 태그: AI_COMPLETE · Cortex Analyst · Semantic Model YAML
 - 출처 (하단 8pt): NL2SQL 90%+ 정확도, Snowflake Engineering Blog
 
 
