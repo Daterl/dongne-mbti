@@ -1,3 +1,4 @@
 name: sf_env
 dependencies:
   - plotly
+  - altair
