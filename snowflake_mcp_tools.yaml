@@ -1,0 +1,28 @@
+# Snowflake MCP Tools Config — dongne-mbti 프로젝트
+# https://github.com/Snowflake-Labs/mcp
+
+search_services:
+  - name: DONGNE_SEARCH
+    database: DONGNE_MBTI
+    schema: PUBLIC
+
+analyst_services:
+  - name: DONGNE_ANALYST
+    database: DONGNE_MBTI
+    schema: PUBLIC
+    semantic_model_file: "@DONGNE_MBTI.PUBLIC.DONGNE_REPO/branches/main/models/dongne_mbti.yaml"
+
+sql_statement_permissions:
+  - select: true
+  - create: true
+  - insert: true
+  - update: true
+  - drop: true
+
+other_services:
+  query_manager:
+    enabled: true
+  object_manager:
+    enabled: true
+  semantic_manager:
+    enabled: false
