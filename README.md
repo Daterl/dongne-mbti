@@ -196,7 +196,7 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 | AI_COMPLETE | 동네 프로필 텍스트 생성, 이사 전망 해설 (Tab 1·3) |
 | CORTEX.SENTIMENT | 동네 프로필 감성 점수 산출 (Dynamic Table 파이프라인) |
 | Cortex Search | 동네 프로필 하이브리드(벡터+키워드) 검색 (Tab 2) — 단순 벡터 대비 [검색 품질 12%+ 향상](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview) |
-| Cortex Analyst | 자연어 → SQL 변환, Semantic Model 기반 (Tab 4) — [90%+ 정확도](https://www.snowflake.com/en/blog/cortex-analyst-ai-sql-accuracy/) |
+| Cortex Analyst | 자연어 → SQL 변환, Semantic Model 기반 (Tab 4) — [90%+ 정확도](https://www.snowflake.com/en/engineering-blog/cortex-analyst-text-to-sql-accuracy-bi/) |
 | Cortex Agent | DDL 설계 완료 — Trial 계정 제약으로 런타임 미호출, 정식 계정 시 즉시 활성화 |
 | ML FORECAST | 실거래가 시계열 예측 (Tab 3) |
 
