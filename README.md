@@ -244,3 +244,30 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 
 Snowflake Hackathon 2026 Korea | Tech Track | 2인 팀  
 개발 기간: 2026년 4월 1일 ~ 4월 12일
+
+<table>
+  <tr>
+    <td align="center" width="300">
+      <br/>
+      <img src="assets/team/diego-yoon.png" width="120" height="120" alt="diego.yoon" />
+      <br/><br/>
+      <b>diego.yoon</b>
+      <br/>
+      <sub>Frontend Engineer</sub>
+      <br/>
+      <sub>카카오헬스케어</sub>
+      <br/><br/>
+    </td>
+    <td align="center" width="300">
+      <br/>
+      <img src="assets/team/enzo-cho.png" width="120" height="120" alt="enzo.cho" />
+      <br/><br/>
+      <b>enzo.cho</b>
+      <br/>
+      <sub>Backend Engineer</sub>
+      <br/>
+      <sub>카카오헬스케어</sub>
+      <br/><br/>
+    </td>
+  </tr>
+</table>
