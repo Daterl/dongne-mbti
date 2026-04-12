@@ -5,6 +5,7 @@
 [![Snowflake](https://img.shields.io/badge/Snowflake-Cortex%20AI-29B5E8?logo=snowflake)](https://www.snowflake.com)
 [![Streamlit](https://img.shields.io/badge/Streamlit%20in%20Snowflake-FF4B4B?logo=streamlit)](https://streamlit.io)
 [![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **[→ 앱 바로 가기](#)** · **[→ 데모 영상](#)**
 
@@ -271,3 +272,9 @@ Snowflake Hackathon 2026 Korea | Tech Track | 2인 팀
     </td>
   </tr>
 </table>
+
+---
+
+## 라이선스
+
+이 프로젝트는 [MIT License](LICENSE)를 따릅니다.
