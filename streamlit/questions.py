@@ -171,17 +171,32 @@ AXIS_LABELS = {
 }
 
 
-# ── 스케일링 상수 ────────────────────────────────────────────────────────
-# 사용자 점수(평균 ~[-0.6,+0.6])를 동네 z-score 범위(~[-2,+2])에 맞춤.
-# ×3 팩터로 [-1.8,+1.8] 범위가 되어 동네 z-score 분포와 자연스럽게 매칭.
-SCORE_SCALE_FACTOR = 3.0
+# ── 축별 비례 스케일링 ──────────────────────────────────────────────────
+# 기존 균일 ×3은 축별 데이터 분포를 무시하여 JP 39%, TF 45% 커버리지만 달성.
+# 축별 비례 스케일링: 사용자 이론적 최대 → 동네 실제 최대로 매핑하여 100% 커버리지.
+#
+# _USER_RAW_BOUNDS: 퀴즈 가중치로 계산한 축별 이론적 raw 평균 범위
+# _DONG_BOUNDS: DONG_PROFILES 테이블의 실제 z-score 범위 (118개 동)
+# 전략적 선택 고려한 정확한 바운드 (2^8 부분집합 전수 탐색으로 산출)
+_USER_RAW_BOUNDS = {
+    "EI": (-0.6000, 0.6000),
+    "SN": (-0.7000, 0.6000),
+    "TF": (-0.5000, 0.7000),
+    "JP": (-0.7000, 0.5000),
+}
+_DONG_BOUNDS = {
+    "EI": (-0.67, 1.92),
+    "SN": (-2.55, 2.71),
+    "TF": (-1.11, 3.64),
+    "JP": (-1.61, 3.17),
+}
 
 
 # ── 스코어링 함수 ────────────────────────────────────────────────────────
 def compute_user_scores(answers: list[int]) -> dict[str, float]:
     """
     8개 질문에 대한 답변(0~3 인덱스)을 받아 4축 선호 점수를 계산.
-    동네 z-score 범위에 맞게 스케일링 적용.
+    축별 비례 스케일링으로 동네 z-score 범위와 정확히 매핑.
 
     Returns: {"EI": float, "SN": float, "TF": float, "JP": float}
     """
@@ -199,7 +214,12 @@ def compute_user_scores(answers: list[int]) -> dict[str, float]:
     for axis in totals:
         if counts[axis] > 0:
             raw = totals[axis] / counts[axis]
-            scores[axis] = round(raw * SCORE_SCALE_FACTOR, 4)
+            u_lo, u_hi = _USER_RAW_BOUNDS[axis]
+            d_lo, d_hi = _DONG_BOUNDS[axis]
+            if raw >= 0:
+                scores[axis] = round(raw / u_hi * d_hi, 4) if u_hi > 0 else 0.0
+            else:
+                scores[axis] = round(raw / u_lo * d_lo, 4) if u_lo < 0 else 0.0
         else:
             scores[axis] = 0.0
 
