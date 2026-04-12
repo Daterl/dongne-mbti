@@ -960,7 +960,7 @@ with tab2:
             col = col_a if i % 2 == 0 else col_b
             if col.button(sug, key=f"sug_{i}", use_container_width=True):
                 st.session_state["_pending"] = sug
-                st.experimental_rerun()
+                st.rerun()
 
     # ── 대화 히스토리 출력 ──
     for msg in st.session_state.messages:
@@ -1002,12 +1002,12 @@ with tab2:
                 prev_history = st.session_state.messages[:-1]
                 answer_text, _ = _search_and_respond(prompt, history=prev_history)
             st.session_state.messages.append({"role": "assistant", "content": answer_text})
-        st.experimental_rerun()
+        st.rerun()
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
             st.session_state.messages = []
-            st.experimental_rerun()
+            st.rerun()
 
     # ── 탭 2 → 탭 3 연결 CTA ──
     st.markdown("""
@@ -1235,7 +1235,7 @@ with tab4:
             col = ex_row1[i] if i < 3 else ex_row2[i - 3]
             if col.button(ex, key=f"analyst_ex_{i}", use_container_width=True):
                 st.session_state["_analyst_pending"] = ex
-                st.experimental_rerun()
+                st.rerun()
 
     # 대화 히스토리 출력
     for msg in st.session_state.get("analyst_history", []):
@@ -1332,9 +1332,9 @@ with tab4:
                     "sql": None,
                     "data": None,
                 })
-        st.experimental_rerun()
+        st.rerun()
 
     if st.session_state.get("analyst_history"):
         if st.button("조회 초기화", key="reset_analyst"):
             st.session_state.analyst_history = []
-            st.experimental_rerun()
+            st.rerun()
