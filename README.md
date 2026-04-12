@@ -112,7 +112,7 @@ Cortex Search + Cortex Analyst가 조건에 맞는 동네를 추천해줍니다.
 Tab 2가 "느낌으로 동네 찾기"라면, Tab 4는 **수치로 파고드는 분석 도구**입니다.  
 자연어 질문을 SQL로 자동 변환(NL2SQL)하여 MBTI 점수·통계·순위를 정확하게 조회합니다.
 
-![Tab 4 — 데이터 탐색](assets/screenshots/tab4-data-explorer.jpg)
+![Tab 4 — 데이터 탐색](assets/screenshots/tab4-data-explorer-v2.jpg)
 
 > **질의 예시**
 > - "서초구에서 가장 외향적인(E) 동네 TOP 3 알려줘"
@@ -237,7 +237,7 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 | ![Tab 1](assets/screenshots/tab1-dong-card.jpg) | MBTI 카드 + 레이더차트 + 궁합 |
 | ![Tab 2](assets/screenshots/tab2-dong-search.jpg) | 자연어 멀티턴 동네 검색 |
 | ![Tab 3](assets/screenshots/tab3-price-forecast-v2.png) | 실거래가 + ML 예측 + AI 전망 |
-| ![Tab 4](assets/screenshots/tab4-data-explorer.jpg) | NL2SQL 데이터 탐색 |
+| ![Tab 4](assets/screenshots/tab4-data-explorer-v2.jpg) | NL2SQL 데이터 탐색 |
 
 ---
 
