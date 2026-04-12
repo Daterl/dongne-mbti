@@ -1846,6 +1846,122 @@ with tab3:
         else:
             st.info("AI 전망을 생성할 수 없습니다.")
 
+    # ── 🧬 성격 × 이 동네 (개인화 reveal / 퀴즈 CTA) ──
+    st.divider()
+    _AXIS_INTERPRET = {
+        "EI": {True: "외향적·활동적 성향", False: "내향적·조용한 성향"},
+        "SN": {True: "문화적·감각적 성향", False: "실용적·현실적 성향"},
+        "TF": {True: "이성적·투자 중시 성향", False: "감성적·생활 만족 중시 성향"},
+        "JP": {True: "변화 수용적 성향", False: "안정 추구 성향"},
+    }
+
+    if st.session_state.get("quiz_user_mbti"):
+        # ── 퀴즈 완료: 개인화 섹션 ──
+        st.markdown("**🧬 당신의 성격 × 이 동네**")
+        st.caption("퀴즈 결과 + 시세 예측 + 인구 흐름 + 동네 성격을 AI가 종합 판단합니다")
+
+        user_mbti = st.session_state.quiz_user_mbti
+        user_scores = st.session_state.quiz_user_scores
+        profiles_df = load_profiles()
+        dong_row = profiles_df[
+            (profiles_df["SGG"] == t3_gu) & (profiles_df["EMD"] == t3_dong)
+        ]
+
+        if dong_row.empty:
+            pass  # 동네 프로필 없으면 개인화 섹션 숨김
+        else:
+            dong_info = dong_row.iloc[0]
+            dong_mbti = dong_info.get("MBTI", "")
+            dong_sentiment = dong_info.get("SENTIMENT_SCORE", None)
+            dong_type = dong_info.get("NEIGHBORHOOD_TYPE", "")
+
+            # 축별 해석 생성
+            user_tf = user_scores.get("TF", 0)
+            user_jp = user_scores.get("JP", 0)
+            tf_text = _AXIS_INTERPRET["TF"][user_tf > 0]
+            jp_text = _AXIS_INTERPRET["JP"][user_jp > 0]
+
+            # MBTI 뱃지 표시
+            st.markdown(
+                f'<div class="info-card">'
+                f'👤 나의 성격: <b>{user_mbti}</b> '
+                f'(TF {user_tf:+.1f} · {tf_text} / JP {user_jp:+.1f} · {jp_text})'
+                f'&nbsp;&nbsp;↔&nbsp;&nbsp;'
+                f'🏘️ 동네 성격: <b>{dong_mbti}</b> ({dong_type})'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            # AI 개인화 조언 (session_state 캐시)
+            fit_key = f"_ai_fit_{t3_gu}_{t3_dong}_{n_periods}"
+            if fit_key not in st.session_state:
+                with st.spinner("AI가 당신의 성격과 이 동네의 미래를 매칭 중..."):
+                    try:
+                        # 시세/인구 정보 (Tab 3 기존 변수 재사용)
+                        price_info = ""
+                        if has_forecast:
+                            fc_pct = (forecast_df["FORECAST_PRICE"].iloc[-1] - latest) / latest * 100 if latest > 0 else 0
+                            price_info = f"\n- ML {n_periods}개월 시세 예측: {fc_pct:+.1f}%"
+
+                        pop_info = ""
+                        if pop_net is not None:
+                            flow_dir = "전입 우세" if pop_net > 0 else "전출 우세"
+                            pop_info = f"\n- 인구 순이동: {pop_net:+,}명 ({flow_dir})"
+
+                        sentiment_info = ""
+                        if dong_sentiment is not None and str(dong_sentiment) not in ("None", "nan", ""):
+                            sent_val = float(dong_sentiment)
+                            sent_label = "긍정적" if sent_val > 0 else "부정적" if sent_val < 0 else "중립"
+                            sentiment_info = f"\n- 동네 감성 점수: {sent_val:+.2f} ({sent_label})"
+
+                        domain_ctx = _DOMAIN_CONTEXT.get(t3_gu, f"{t3_gu} 지역입니다.")
+
+                        fit_prompt = (
+                            f"반드시 한국어로 2-3문장으로 답변하세요. 영어 사용 금지.\n\n"
+                            f"당신은 부동산 성격 매칭 전문가입니다. "
+                            f"사용자의 성격과 동네 데이터를 결합하여 개인화된 이사 조언을 해주세요.\n\n"
+                            f"[사용자 성격]\n"
+                            f"- 투자 성향(TF축): {user_tf:+.1f} ({tf_text})\n"
+                            f"- 안정 성향(JP축): {user_jp:+.1f} ({jp_text})\n\n"
+                            f"[동네 데이터]\n"
+                            f"- {t3_gu} {t3_dong} MBTI: {dong_mbti} ({dong_type})"
+                            f"{price_info}"
+                            f"{pop_info}"
+                            f"{sentiment_info}\n\n"
+                            f"[지역 특성]\n- {domain_ctx}\n\n"
+                            f"규칙:\n"
+                            f"1. 반드시 TF축({user_tf:+.1f})과 JP축({user_jp:+.1f}) 수치를 문장에 인용\n"
+                            f"2. 이 성격의 사용자에게만 해당하는 맞춤 조언 (다른 성격이면 다른 조언)\n"
+                            f"3. 마지막 문장에 매수/관망/매도 판단 + 성격 기반 이유"
+                        )
+                        safe_prompt = fit_prompt.replace("$$", "")
+                        ai_fit = session.sql(
+                            f"SELECT AI_COMPLETE('{MODEL_PRIMARY}', $${safe_prompt}$$) AS RESULT"
+                        ).collect()[0]["RESULT"]
+                        st.session_state[fit_key] = ai_fit if ai_fit else ""
+                    except Exception as e:
+                        st.session_state[fit_key] = f"__ERR__{str(e)[:150]}"
+
+            cached_fit = st.session_state.get(fit_key, "")
+            if cached_fit.startswith("__ERR__"):
+                st.error(f"맞춤 분석 생성 중 오류: {cached_fit[7:]}")
+            elif cached_fit:
+                st.markdown(
+                    f'<div class="chat-msg chat-msg-ai">🧬 {cached_fit}</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("맞춤 분석을 생성할 수 없습니다.")
+    else:
+        # ── 퀴즈 미완료: CTA ──
+        st.markdown("""
+        <div class="info-card">
+            <b>🧬 나에게 맞는 맞춤 분석을 받으려면?</b><br>
+            성향 테스트를 완료하면, 당신의 성격에 맞는 <b>개인화된 투자 조언</b>을 받을 수 있어요.<br>
+            같은 동네라도 성격에 따라 다른 조언이 나옵니다.
+        </div>
+        """, unsafe_allow_html=True)
+
     # ── 탭 3 → 탭 4 연결 CTA ──
     st.markdown("""
     <div class="next-tab-cta">
