@@ -21,11 +21,11 @@
 | 호갱노노 | 실거래가 시세 흐름 | 라이프스타일 적합성 |
 | 카카오맵 | 주변 시설 위치 | 데이터 기반 동네 정의 |
 
-서울에는 매년 62만 명이 이사를 옵니다 (통계청, 2023).  
-평균 탐색 기간은 **4.3개월** — 그 시간 동안 "이 동네가 나랑 맞는지"를 판단할 도구가 없었습니다.
+매년 약 **43만 명**이 타 지역에서 서울로 이사 옵니다 ([통계청 인구이동통계, 2024](https://data.si.re.kr/smr2024/smr2024_01population.html)).  
+한국리서치 조사에 따르면 **78%**가 주거지 선택 시 '동네 분위기·생활환경'을 중요하게 보지만, 이를 데이터로 판단할 도구가 없었습니다.
 
 동네 MBTI는 Snowflake Marketplace 데이터(상권·부동산·유동인구·소비)를 교차 분석하여  
-서울 3구 55개 동의 성격을 MBTI 16유형으로 정의합니다.
+서울 3구 118개 동의 성격을 MBTI 16유형으로 정의합니다.
 
 ---
 
@@ -49,7 +49,7 @@
 
 ### Tab 1 — 동네 MBTI 카드
 
-서울 3구 55개 동을 4축 데이터로 분석해 MBTI 16유형 중 하나로 분류합니다.
+서울 3구 118개 동을 4축 데이터로 분석해 MBTI 16유형 중 하나로 분류합니다.
 
 | 축 | 의미 | 데이터 |
 |----|------|--------|
@@ -132,7 +132,7 @@ ei_score = (z_방문자비율 + z_주말유동 + z_여가소비) / 3
 → 118개 동 전체 평균보다 활발하면 E, 조용하면 I
 ```
 
-절대적 기준이 아닌 **상대적 비교** — "서울 3구 55개 동 중 어디에 위치하는가"가 기준입니다.
+절대적 기준이 아닌 **상대적 비교** — "서울 3구 118개 동 중 어디에 위치하는가"가 기준입니다.
 
 ### 4. 검증 결과
 
@@ -149,7 +149,7 @@ ei_score = (z_방문자비율 + z_주말유동 + z_여가소비) / 3
 
 ## 분석 범위
 
-**서울 3구 55개 동** — 서초구·영등포구·중구
+**서울 3구 118개 동** — 서초구·영등포구·중구
 
 동네 성격을 정밀하게 정의하려면 **동(洞) 단위** 데이터가 필요합니다.  
 Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전히 커버하기 때문에,  
@@ -195,7 +195,7 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 
 ```mermaid
 graph TB
-    A[Snowflake Marketplace\nSPH · RICHGO · Telecom] --> B[DONG_PROFILES\n55개 동 MBTI + 프로필]
+    A[Snowflake Marketplace\nSPH · RICHGO · Telecom] --> B[DONG_PROFILES\n118개 동 MBTI + 프로필]
     B --> C[Cortex Search\nDONGNE_SEARCH]
     B --> D[Cortex Analyst\nSemantic Model YAML]
     B --> E[Dynamic Table\nDONG_PROFILES_ENRICHED\nTARGET_LAG=1day]
