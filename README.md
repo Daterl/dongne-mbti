@@ -204,48 +204,7 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 
 ## 아키텍처
 
-```mermaid
-graph TB
-    subgraph Data["데이터 수집"]
-        M1[SPH\n유동인구·소비·자산]
-        M2[RICHGO\n실거래가·인구]
-    end
-
-    subgraph Pipeline["Cortex AI 배치 파이프라인"]
-        CL[AI_CLASSIFY\n라이프스타일 유형 분류]
-        CS[AI_SENTIMENT\n감성 점수 산출]
-        CC[AI_COMPLETE\n동네 프로필 생성]
-    end
-
-    subgraph Storage["저장"]
-        DP[DONG_PROFILES\n118개 동 MBTI]
-        DT[Dynamic Table\nDONG_PROFILES_ENRICHED\nTARGET_LAG=1day]
-    end
-
-    subgraph Search["검색·분석"]
-        SRC[Cortex Search\n하이브리드 검색]
-        ANA[Cortex Analyst\nSemantic Model YAML]
-        MLF[ML FORECAST\n118 시리즈 시세 예측]
-    end
-
-    subgraph App["Streamlit in Snowflake"]
-        T1[Tab 1\n동네 카드]
-        T2[Tab 2\n동네 찾기]
-        T3[Tab 3\n시세 전망]
-        T4[Tab 4\n데이터 탐색]
-    end
-
-    M1 --> CL --> DP
-    M1 --> CS --> DT
-    M2 --> DP
-    DP --> CC --> DP
-    DP --> SRC --> T2
-    DP --> ANA --> T4
-    DT --> T1
-    DP --> T1
-    M2 --> MLF --> T3
-    DP --> T3
-```
+![동네 MBTI Architecture](assets/architecture.jpg)
 
 ---
 
