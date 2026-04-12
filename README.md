@@ -36,6 +36,10 @@
 
 ## 이런 분들을 위해 만들었어요
 
+8가지 질문에 답하면 나에게 딱 맞는 동네를 찾아줍니다.
+
+![랜딩 퀴즈](assets/screenshots/landing-quiz.png)
+
 **"직방에서 가격은 봤는데, 이 동네 분위기가 나랑 맞는지 모르겠어요"**  
 → Tab 1에서 동네 MBTI를 확인하고, 내 성격과 잘 맞는 동네를 찾아보세요.
 
@@ -47,6 +51,10 @@
 
 **"서초구에서 T 성향이 가장 강한 동네 순위가 궁금해요"**  
 → Tab 4에서 자연어로 물어보면 SQL로 변환해 정확한 수치를 뽑아줍니다.
+
+퀴즈 결과 — 나에게 맞는 동네 TOP 3:
+
+![랜딩 결과](assets/screenshots/landing-result.png)
 
 ---
 
@@ -65,9 +73,13 @@
 
 동네 카드에서 MBTI 유형 + 성격 요약 + 다른 동네와의 궁합 점수를 확인할 수 있습니다.
 
-> **예시** — 서초구 반포동은 `INTJ`  
-> "조용하고 계획적인 분위기. 고자산 1인 가구와 전문직 비율이 높고, 주말보다 평일 활동이 활발한 안정적인 동네."  
-> 궁합: 잠원동(INTJ) ★★★★★ · 방배동(ISTJ) ★★★★☆ · 당산동(ENFP) ★★☆☆☆
+![Tab 1 — 동네 MBTI 카드](assets/screenshots/tab1-dong-card.jpg)
+
+> **예시** — 서초구 내곡동은 `ESTJ 독수리`  
+> "생활 속에서 필요한 모든 것을 찾을 수 있는 활기찬 동네. 생활 밀착형 소비를 즐기는 이들에게 최적화된 지역."  
+> 궁합: 신원동(ESTJ) ★★★★★ · 반포동(ISTP) ★★☆☆☆
+
+![Tab 1 — 궁합 비교](assets/screenshots/tab1-compatibility.jpg)
 
 ### Tab 2 — 자연어 동네 찾기
 
@@ -75,13 +87,16 @@
 Cortex Search + Cortex Analyst가 조건에 맞는 동네를 추천해줍니다.  
 멀티턴 대화를 지원하여 조건을 좁혀가며 탐색할 수 있습니다.
 
+![Tab 2 — 자연어 동네 찾기](assets/screenshots/tab2-dong-search.jpg)
+
 > **대화 예시**
 > ```
-> 나  : 조용하고 자산 수준 높은 서초구 동네 추천해줘
-> AI  : 반포동(INTJ), 잠원동(INTJ), 서초동(ISTJ)이 적합해요.
->       셋 다 높은 자산·낮은 유동인구·안정적 시세가 특징입니다.
-> 나  : 전세 2억대로 가능한 곳만 알려줘
-> AI  : 조건에 맞는 동네는 방배동입니다. 최근 6개월 전세 중위가 1.9억이에요.
+> 나  : 서초구에서 부유한 동네 알려줘
+> AI  : 잠원동(ESTP), 서초동(INTP), 내곡동(ESTJ) 등을 추천해 드릴게요.
+> 나  : 나는 ESTP인데 서초구에서 나와 맞는 동네는 없어?
+> AI  : 잠원동(ESTP)이나 원지동(ESTP)을 추천해 드릴게요.
+> 나  : 용산구는 어때??
+> AI  : 죄송해요! 용산구는 현재 서비스 범위에 없어요. 서초구·영등포구·중구만 지원합니다.
 > ```
 
 ### Tab 3 — 이사 예보
@@ -89,10 +104,14 @@ Cortex Search + Cortex Analyst가 조건에 맞는 동네를 추천해줍니다.
 5년치 실거래가 시계열 데이터를 기반으로 향후 3개월 시세를 예측합니다.  
 "지금 이사하면 좋을까?"에 대한 AI 판단을 계절성·인구이동·시세 추이로 제공합니다.
 
+![Tab 3 — 시세 전망 & ML 예측](assets/screenshots/tab3-price-forecast.jpg)
+
 ### Tab 4 — 데이터 탐색 (Cortex Analyst)
 
 Tab 2가 "느낌으로 동네 찾기"라면, Tab 4는 **수치로 파고드는 분석 도구**입니다.  
 자연어 질문을 SQL로 자동 변환(NL2SQL)하여 MBTI 점수·통계·순위를 정확하게 조회합니다.
+
+![Tab 4 — 데이터 탐색](assets/screenshots/tab4-data-explorer.jpg)
 
 > **질의 예시**
 > - "서초구에서 가장 외향적인(E) 동네 TOP 3 알려줘"
@@ -211,7 +230,13 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 
 ## 스크린샷
 
-> *(배포 완료 후 탭별 스크린샷 추가 예정)*
+| 화면 | 설명 |
+|------|------|
+| ![랜딩 퀴즈](assets/screenshots/landing-quiz.png) | 8가지 질문으로 나의 동네 MBTI 파악 |
+| ![Tab 1](assets/screenshots/tab1-dong-card.jpg) | MBTI 카드 + 레이더차트 + 궁합 |
+| ![Tab 2](assets/screenshots/tab2-dong-search.jpg) | 자연어 멀티턴 동네 검색 |
+| ![Tab 3](assets/screenshots/tab3-price-forecast.jpg) | 실거래가 + ML 예측 + AI 전망 |
+| ![Tab 4](assets/screenshots/tab4-data-explorer.jpg) | NL2SQL 데이터 탐색 |
 
 ---
 
