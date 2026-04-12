@@ -501,17 +501,30 @@ st.markdown("""
 .match-rank { font-size: 13px; font-weight: 700; opacity: 0.5; letter-spacing: 1px; margin-bottom: 8px; }
 .match-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
 .match-pct { font-size: 15px; font-weight: 600; color: #2563EB; margin-bottom: 8px; }
-.axis-compare { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; }
-.axis-compare-bar {
-    flex: 1; height: 6px; border-radius: 3px;
-    background: rgba(0,0,0,0.06); position: relative;
+.axis-match-row {
+    display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px;
 }
-.axis-compare-user, .axis-compare-dong {
-    position: absolute; top: -3px; width: 12px; height: 12px;
-    border-radius: 50%; transform: translateX(-50%);
+.axis-match-label {
+    width: 80px; font-weight: 600; opacity: 0.7; flex-shrink: 0;
 }
-.axis-compare-user { background: #2563EB; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
-.axis-compare-dong { background: #F87171; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.axis-match-track {
+    flex: 1; height: 8px; border-radius: 4px;
+    background: rgba(0,0,0,0.06); overflow: hidden; min-width: 0;
+}
+.axis-match-fill {
+    height: 100%; border-radius: 4px;
+    transition: width 0.6s ease;
+    box-shadow: 0 0 6px rgba(0,0,0,0.08);
+}
+.axis-match-val {
+    width: 36px; text-align: right; font-weight: 700; flex-shrink: 0;
+}
+.quiz-match-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 24px; font-size: 13px; font-weight: 600;
+    background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(59,130,246,0.15));
+    border: 1px solid rgba(37,99,235,0.2); color: #2563EB; margin-bottom: 12px;
+}
 .result-banner {
     border-radius: 14px; padding: 10px 18px; margin-bottom: 12px;
     display: flex; align-items: center; gap: 10px; font-size: 14px;
@@ -764,22 +777,22 @@ if not st.session_state.quiz_completed:
         """, unsafe_allow_html=True)
 
         # Phase B: TOP 3 매칭
-        st.markdown("""
-        <div style="text-align:center;margin:32px 0 8px;">
+        _top1_name = f"{matches[0][0]['SGG']} {matches[0][0]['EMD']}" if matches else ""
+        _top1_pct = compute_match_pct(matches[0][1]) if matches else 0
+        st.markdown(f"""
+        <div style="text-align:center;margin:32px 0 16px;">
             <h3 style="margin:0;">🏘️ 당신에게 딱 맞는 동네 TOP 3</h3>
-            <p style="font-size:13px;opacity:0.5;margin-top:4px;">
-                <span style="display:inline-block;width:10px;height:10px;background:#2563EB;
-                      border-radius:50%;margin-right:4px;vertical-align:middle;"></span>나
-                <span style="display:inline-block;width:10px;height:10px;background:#F87171;
-                      border-radius:50%;margin:0 4px 0 12px;vertical-align:middle;"></span>동네
+            <p style="font-size:15px;opacity:0.7;margin-top:6px;">
+                <b>{mbti}</b> 성향의 당신, <b>{_top1_name}</b>과 <b style="color:#2563EB;">{_top1_pct}%</b> 매칭!
             </p>
         </div>
         """, unsafe_allow_html=True)
 
         rec_texts = st.session_state.get("quiz_rec_texts", ["", "", ""])
+        _AXIS_KR = {"EI": "활동성", "SN": "라이프스타일", "TF": "경제관", "JP": "안정성"}
 
-        # 3위 → 2위 → 1위 카운트다운 순서
-        for rank_idx in range(len(matches) - 1, -1, -1):
+        # 1위 → 2위 → 3위 순서
+        for rank_idx in range(len(matches)):
             row_dict, dist = matches[rank_idx]
             rank = rank_idx + 1
             dong_mbti = row_dict["MBTI"]
@@ -789,24 +802,30 @@ if not st.session_state.quiz_completed:
             rec = rec_texts[rank_idx] if rank_idx < len(rec_texts) else ""
             medal = ["🥇", "🥈", "🥉"][rank_idx]
 
-            # 축별 비교 바 HTML
+            # 축별 매칭률 바 HTML
             axis_html = ""
             for ax in ["EI", "SN", "TF", "JP"]:
-                info = AXIS_LABELS[ax]
                 uv = scores[ax]
                 dv = float(row_dict.get(f"{ax}_SCORE", 0))
-                up = max(0, min(100, (uv + 3) / 6 * 100))
-                dp = max(0, min(100, (dv + 3) / 6 * 100))
+                diff = abs(uv - dv)
+                ax_pct = max(0, int(100 - diff / 6 * 100))
+                if ax_pct >= 80:
+                    bar_color = "linear-gradient(90deg, #2563EB, #60A5FA)"
+                    val_color = "#2563EB"
+                elif ax_pct >= 60:
+                    bar_color = "linear-gradient(90deg, #F59E0B, #FBBF24)"
+                    val_color = "#D97706"
+                else:
+                    bar_color = "linear-gradient(90deg, #9CA3AF, #D1D5DB)"
+                    val_color = "#6B7280"
                 axis_html += (
-                    '<div class="axis-compare">'
-                    f'<span style="width:24px;text-align:right;opacity:0.5;">'
-                    f'{info["neg"].split()[0]}</span>'
-                    f'<div class="axis-compare-bar">'
-                    f'<div class="axis-compare-user" style="left:{up:.0f}%;"></div>'
-                    f'<div class="axis-compare-dong" style="left:{dp:.0f}%;"></div>'
-                    f'</div>'
-                    f'<span style="width:24px;opacity:0.5;">'
-                    f'{info["pos"].split()[0]}</span>'
+                    '<div class="axis-match-row">'
+                    f'<span class="axis-match-label">{_AXIS_KR[ax]}</span>'
+                    f'<div class="axis-match-track">'
+                    f'<div class="axis-match-fill" style="width:{ax_pct}%;'
+                    f'background:{bar_color};"></div></div>'
+                    f'<span class="axis-match-val" style="color:{val_color};">'
+                    f'{ax_pct}%</span>'
                     '</div>'
                 )
 
@@ -831,10 +850,12 @@ if not st.session_state.quiz_completed:
                         <div style="font-size:13px;opacity:0.6;">
                             {dong_mbti} · {dong_animal_name}
                         </div>
-                        <div class="match-pct">매칭률 {pct}%</div>
+                        <div class="match-pct" style="{'font-size:20px;' if rank == 1 else ''}">매칭률 {pct}%</div>
                     </div>
                 </div>
-                <div style="margin-top:12px;">{axis_html}</div>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);">
+                    {axis_html}
+                </div>
                 {rec_html}
             </div>
             """, unsafe_allow_html=True)
@@ -843,8 +864,13 @@ if not st.session_state.quiz_completed:
         st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
         c_go, c_retry = st.columns([2, 1])
         with c_go:
-            if st.button("🏙️ 동네 둘러보기", use_container_width=True, type="primary"):
+            if st.button("🏙️ 1위 동네 둘러보기", use_container_width=True, type="primary"):
                 st.session_state.quiz_completed = True
+                if matches:
+                    st.session_state["_quiz_nav_target"] = {
+                        "sgg": matches[0][0]["SGG"],
+                        "emd": matches[0][0]["EMD"],
+                    }
                 st.experimental_rerun()
         with c_retry:
             if st.button("🔄 다시 하기", use_container_width=True):
@@ -887,13 +913,40 @@ tab1, tab2, tab3, tab4 = st.tabs(["🏠 동네 카드", "💬 동네 찾기", "�
 with tab1:
     profiles_df = load_profiles()
 
+    # 퀴즈 네비게이션 핸들러 (CTA 또는 퀵네비 버튼에서 설정)
+    _quiz_nav = st.session_state.pop("_quiz_nav_target", None)
+    if _quiz_nav:
+        st.session_state["t1_gu"] = _quiz_nav["sgg"]
+        st.session_state["t1_emd"] = _quiz_nav["emd"]
+
+    # 퀴즈 매칭 퀵 네비게이션
+    _qm = st.session_state.get("quiz_matches")
+    if _qm and st.session_state.get("quiz_completed"):
+        _qn_cols = st.columns(len(_qm))
+        for _qi, (_qr, _qd) in enumerate(_qm):
+            with _qn_cols[_qi]:
+                _qmedal = ["🥇", "🥈", "🥉"][_qi]
+                _qpct = compute_match_pct(_qd)
+                if st.button(
+                    f"{_qmedal} {_qr['EMD']} ({_qpct}%)",
+                    key=f"qnav_{_qi}",
+                    use_container_width=True,
+                ):
+                    st.session_state["_quiz_nav_target"] = {
+                        "sgg": _qr["SGG"], "emd": _qr["EMD"],
+                    }
+                    st.experimental_rerun()
+
     col_sel1, col_sel2 = st.columns([1, 2])
     with col_sel1:
         gu_list = sorted(profiles_df["SGG"].unique())
-        selected_gu = st.selectbox("구 선택", gu_list)
+        selected_gu = st.selectbox("구 선택", gu_list, key="t1_gu")
     with col_sel2:
         dong_list = sorted(profiles_df[profiles_df["SGG"] == selected_gu]["EMD"].unique())
-        selected_dong = st.selectbox("동 선택", dong_list)
+        # 네비게이션된 동이 현재 구에 없으면 키 제거 (Streamlit 위젯 오류 방지)
+        if "t1_emd" in st.session_state and st.session_state["t1_emd"] not in dong_list:
+            del st.session_state["t1_emd"]
+        selected_dong = st.selectbox("동 선택", dong_list, key="t1_emd")
 
     row = profiles_df[
         (profiles_df["SGG"] == selected_gu) & (profiles_df["EMD"] == selected_dong)
@@ -906,6 +959,18 @@ with tab1:
     row = row.iloc[0]
     mbti = row["MBTI"]
     color = MBTI_COLORS.get(mbti, "#555")
+
+    # 퀴즈 매칭 뱃지 (현재 동네가 TOP 3에 포함될 때)
+    if _qm:
+        for _mi, (_mr, _md) in enumerate(_qm):
+            if _mr["SGG"] == selected_gu and _mr["EMD"] == selected_dong:
+                _mm = ["🥇", "🥈", "🥉"][_mi]
+                _mp = compute_match_pct(_md)
+                st.markdown(
+                    f'<div class="quiz-match-badge">{_mm} 당신과 {_mp}% 매칭된 동네</div>',
+                    unsafe_allow_html=True,
+                )
+                break
 
     # 4축 라벨
     ei = "E 외향적" if row["EI_SCORE"] >= 0 else "I 내향적"
