@@ -171,17 +171,32 @@ AXIS_LABELS = {
 }
 
 
-# ── 스케일링 상수 ────────────────────────────────────────────────────────
-# 사용자 점수(평균 ~[-0.6,+0.6])를 동네 z-score 범위(~[-2,+2])에 맞춤.
-# ×3 팩터로 [-1.8,+1.8] 범위가 되어 동네 z-score 분포와 자연스럽게 매칭.
-SCORE_SCALE_FACTOR = 3.0
+# ── 축별 비례 스케일링 ──────────────────────────────────────────────────
+# 기존 균일 ×3은 축별 데이터 분포를 무시하여 JP 39%, TF 45% 커버리지만 달성.
+# 축별 비례 스케일링: 사용자 이론적 최대 → 동네 실제 최대로 매핑하여 100% 커버리지.
+#
+# _USER_RAW_BOUNDS: 퀴즈 가중치로 계산한 축별 이론적 raw 평균 범위
+# _DONG_BOUNDS: DONG_PROFILES 테이블의 실제 z-score 범위 (118개 동)
+# 4^8 = 65,536 답변 조합 전수 탐색으로 산출한 정확한 바운드
+_USER_RAW_BOUNDS = {
+    "EI": (-0.5000, 0.4800),
+    "SN": (-0.6500, 0.4333),
+    "TF": (-0.4500, 0.7000),
+    "JP": (-0.5500, 0.4333),
+}
+_DONG_BOUNDS = {
+    "EI": (-0.67, 1.92),
+    "SN": (-2.55, 2.71),
+    "TF": (-1.11, 3.64),
+    "JP": (-1.61, 3.17),
+}
 
 
 # ── 스코어링 함수 ────────────────────────────────────────────────────────
 def compute_user_scores(answers: list[int]) -> dict[str, float]:
     """
     8개 질문에 대한 답변(0~3 인덱스)을 받아 4축 선호 점수를 계산.
-    동네 z-score 범위에 맞게 스케일링 적용.
+    축별 비례 스케일링으로 동네 z-score 범위와 정확히 매핑.
 
     Returns: {"EI": float, "SN": float, "TF": float, "JP": float}
     """
@@ -199,7 +214,12 @@ def compute_user_scores(answers: list[int]) -> dict[str, float]:
     for axis in totals:
         if counts[axis] > 0:
             raw = totals[axis] / counts[axis]
-            scores[axis] = round(raw * SCORE_SCALE_FACTOR, 4)
+            u_lo, u_hi = _USER_RAW_BOUNDS[axis]
+            d_lo, d_hi = _DONG_BOUNDS[axis]
+            if raw >= 0:
+                scores[axis] = round(raw / u_hi * d_hi, 4) if u_hi > 0 else 0.0
+            else:
+                scores[axis] = round(raw / u_lo * d_lo, 4) if u_lo < 0 else 0.0
         else:
             scores[axis] = 0.0
 
@@ -207,12 +227,15 @@ def compute_user_scores(answers: list[int]) -> dict[str, float]:
 
 
 def scores_to_mbti(scores: dict[str, float]) -> str:
-    """4축 점수 → MBTI 4글자 문자열."""
+    """4축 점수 → MBTI 4글자 문자열. 부동소수점 -0.0 방지용 epsilon 적용."""
+    def _snap(v, eps=1e-6):
+        return 0.0 if abs(v) < eps else v
+
     return (
-        ("E" if scores["EI"] >= 0 else "I")
-        + ("S" if scores["SN"] >= 0 else "N")
-        + ("T" if scores["TF"] >= 0 else "F")
-        + ("P" if scores["JP"] >= 0 else "J")
+        ("E" if _snap(scores["EI"]) >= 0 else "I")
+        + ("S" if _snap(scores["SN"]) >= 0 else "N")
+        + ("T" if _snap(scores["TF"]) >= 0 else "F")
+        + ("P" if _snap(scores["JP"]) >= 0 else "J")
     )
 
 
@@ -225,11 +248,21 @@ def match_neighborhoods(user_scores: dict[str, float], profiles_df) -> list:
     """
     results = []
     for _, row in profiles_df.iterrows():
+        # NaN 방어: 축 점수가 NULL/NaN이면 건너뜀
+        try:
+            ei = float(row["EI_SCORE"])
+            sn = float(row["SN_SCORE"])
+            tf = float(row["TF_SCORE"])
+            jp = float(row["JP_SCORE"])
+            if any(v != v for v in (ei, sn, tf, jp)):  # NaN check
+                continue
+        except (ValueError, TypeError):
+            continue
         dist = sqrt(
-            (user_scores["EI"] - float(row["EI_SCORE"])) ** 2
-            + (user_scores["SN"] - float(row["SN_SCORE"])) ** 2
-            + (user_scores["TF"] - float(row["TF_SCORE"])) ** 2
-            + (user_scores["JP"] - float(row["JP_SCORE"])) ** 2
+            (user_scores["EI"] - ei) ** 2
+            + (user_scores["SN"] - sn) ** 2
+            + (user_scores["TF"] - tf) ** 2
+            + (user_scores["JP"] - jp) ** 2
         )
         results.append((row.to_dict(), dist))
 
