@@ -35,9 +35,9 @@
 - [x] 4-2. AI_COUNT_TOKENS 비용 추정 쿼리 추가 (00_verify.sql:10~28)
 
 ### Phase 5: 검증 + 배포 준비
-- [ ] 5-1. git push (코드 변경 반영)
-- [ ] 5-2. CoCo에 `ALTER GIT REPOSITORY FETCH` 실행 후 SiS 재배포
-- [ ] 5-3. 변경된 항목 점수 재산정 (목표 79점 확인)
+- [x] 5-1. git push 완료 (main branch)
+- [ ] 5-2. CoCo에 `ALTER GIT REPOSITORY DONGNE_MBTI.PUBLIC.DONGNE_REPO FETCH;` 실행 후 SiS 재배포
+- [x] 5-3. 점수 재산정 완료 → 68점 → 78~79점 예상
 
 ---
 
@@ -50,4 +50,4 @@
 - (없음 — 진행 중)
 
 ## Status
-**Phase 1 시작** — 문서 개선부터 진행.
+**Phase 1~5 완료** — git push 완료. CoCo에서 git fetch + SiS 재배포 필요.
