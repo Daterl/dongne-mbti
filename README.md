@@ -21,11 +21,16 @@
 | 호갱노노 | 실거래가 시세 흐름 | 라이프스타일 적합성 |
 | 카카오맵 | 주변 시설 위치 | 데이터 기반 동네 정의 |
 
-매년 약 **43만 명**이 타 지역에서 서울로 이사 옵니다 ([통계청 인구이동통계, 2024](https://data.si.re.kr/smr2024/smr2024_01population.html)).  
-한국리서치 조사에 따르면 **78%**가 주거지 선택 시 '동네 분위기·생활환경'을 중요하게 보지만, 이를 데이터로 판단할 도구가 없었습니다.
+매년 약 **43만 명**이 타 지역에서 서울로 이사 옵니다. 서울 내 이동까지 합치면 연간 **122만 건**의 주거 이동이 발생합니다.  
+이 중 **79.8%가 1인 이동**, 전입자의 **68.8%가 20-30대 청년**입니다.
+
+[한국리서치 조사(2024.11)](https://hrcopinion.co.kr/archives/31837)에 따르면 **78%**가 주거지 선택 시 '동네 분위기·생활환경'을 중요하게 보지만,  
+기존 부동산 플랫폼은 가격·면적 정보만 제공합니다. ([한국소비자원 2018](https://www.kca.go.kr): 앱 정보-실제 일치율 **41%**)
 
 동네 MBTI는 Snowflake Marketplace 데이터(상권·부동산·유동인구·소비)를 교차 분석하여  
 서울 3구 118개 동의 성격을 MBTI 16유형으로 정의합니다.
+
+> **출처**: [통계청 국내인구이동통계 2024](https://kostat.go.kr/board.es?mid=a10301010000&bid=205&list_no=434904) · [서울정책컨벤션 인구이동 분석](https://scpm.seoul.go.kr/seoul-policy/evt0236) · [서울연구원 도시모니터링](https://data.si.re.kr/smr2024/smr2024_01population.html)
 
 ---
 
@@ -112,6 +117,11 @@ Tab 2(Cortex Search)와 Tab 4(Cortex Analyst)의 차이:
 클러스터링(K-means)은 '1번 군집·2번 군집' 같은 레이블을 만들어내는데,  
 사람들이 이미 알고 있는 언어인 **MBTI 16유형**을 쓰면 "반포동은 INTJ" 한 마디로 전달됩니다.
 
+한국 18-35세의 **93%**가 MBTI 검사 경험이 있고, Google Trends 기준 MBTI 검색량은 **세계 1위**(2위 홍콩의 약 6배)입니다.  
+[Rentfrow et al. (2013)](https://doi.org/10.1037/a0034434)은 150만 명 데이터로 미국을 3개 성격 지역으로 분류했고,  
+[Jokela et al. (2015, PNAS)](https://doi.org/10.1073/pnas.1415800112)은 런던 216개 구역에서 Person-Environment Fit이 삶의 만족도에 영향을 미침을 실증했습니다.  
+동네 MBTI는 이 학술적 기반 위에 한국인이 가장 익숙한 MBTI 프레임을 적용한 응용 구현입니다.
+
 ### 2. 4축을 어떻게 데이터로 정의했나
 
 핵심 원칙: **"사람의 MBTI가 아닌 동네의 MBTI"** — 같은 축이라도 측정 대상이 다릅니다.
@@ -185,8 +195,9 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 | AI_CLASSIFY | 동네 상권 업종 → 라이프스타일 유형 분류 (Tab 1 전처리) |
 | AI_COMPLETE | 동네 프로필 텍스트 생성, 이사 전망 해설 (Tab 1·3) |
 | CORTEX.SENTIMENT | 동네 프로필 감성 점수 산출 (Dynamic Table 파이프라인) |
-| Cortex Search | 동네 프로필 하이브리드(벡터+키워드) 검색 (Tab 2) |
-| Cortex Analyst | 자연어 → SQL 변환, Semantic Model 기반 (Tab 2) |
+| Cortex Search | 동네 프로필 하이브리드(벡터+키워드) 검색 (Tab 2) — 단순 벡터 대비 [검색 품질 12%+ 향상](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview) |
+| Cortex Analyst | 자연어 → SQL 변환, Semantic Model 기반 (Tab 4) — [90%+ 정확도](https://www.snowflake.com/en/blog/cortex-analyst-ai-sql-accuracy/) |
+| Cortex Agent | Cortex Search + Analyst 오케스트레이션 (Tab 2) |
 | ML FORECAST | 실거래가 시계열 예측 (Tab 3) |
 
 ---
