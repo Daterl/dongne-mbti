@@ -115,21 +115,21 @@ Slide 5 — 아키텍처 + 기술스택 (템플릿 4분할 레이아웃)
   → [Dynamic Table TARGET_LAG=1day] → [Streamlit in Snowflake 4탭]
   * 데이터 1바이트도 Snowflake 외부로 나가지 않음
 [섹션 4] 사용된 기술 스택 — 파란 헤더바
-  · Cortex AI 7종: AI_CLASSIFY, AI_SENTIMENT, AI_COMPLETE, Cortex Search, Cortex Analyst, Cortex Agent, ML FORECAST
+  · Cortex AI 6종 + ML FORECAST: AI_CLASSIFY, AI_SENTIMENT, AI_COMPLETE, Cortex Search, Cortex Analyst, Cortex Agent, ML FORECAST
   · 데이터: SPH (유동인구·소비·자산), RICHGO (실거래가·인구)
   · 앱: Streamlit in Snowflake, Git integration, Dynamic Table
 
 
 Slide 6 — Cortex AI 기능 전체 (그리드)
-- 제목: "Cortex AI 7개 기능 — 모두 실제로 동작한다"
+- 제목: "Cortex AI 6개 기능 실동작 + ML FORECAST"
 - 그리드 (각 카드: 파란 상단 + 흰 설명 + 벤치마크 수치):
-  AI_CLASSIFY    | 동네 상권 → 라이프스타일 유형 6카테고리 자동 분류
-  AI_SENTIMENT   | 감성 분석 92% 정확도 (GPT-4.1 83%, Claude 4 84% 대비)
-  AI_COMPLETE    | 동네 성격 요약 + 이사 전망 생성 (Fallback 모델 자동 전환)
-  Cortex Search  | 하이브리드 검색, 단순 벡터 대비 검색 품질 12%↑ (NDCG@10)
-  Cortex Analyst | NL2SQL 90%+ 정확도, GPT-4o 대비 2배 정확
-  Cortex Agent   | Search + Analyst 오케스트레이션, 멀티턴 대화
-  ML FORECAST    | 118개 시계열 시세 예측, ON_ERROR: SKIP (부분 실패 방지)
+  AI_CLASSIFY    | 동네 상권 → 라이프스타일 유형 6카테고리 자동 분류 ✅
+  AI_SENTIMENT   | 감성 분석 92% 정확도 (GPT-4.1 83%, Claude 4 84% 대비) ✅
+  AI_COMPLETE    | 동네 성격 요약 + 이사 전망 생성 (Fallback 모델 자동 전환) ✅
+  Cortex Search  | 하이브리드 검색, 단순 벡터 대비 검색 품질 12%↑ ✅
+  Cortex Analyst | NL2SQL 90%+ 정확도, GPT-4o 대비 2배 정확 ✅
+  ML FORECAST    | 118개 시계열 시세 예측, ON_ERROR: SKIP ✅
+  Cortex Agent   | DDL 설계 완료 (Trial 계정 제약으로 런타임 미호출) 📋
 - 하단 강조: "AI 결과는 테이블 저장 → 매 클릭 무호출 · 비용 $40 이내 완결"
 - 출처: Snowflake 공식 문서, Cortex Analyst Blog
 
@@ -211,8 +211,8 @@ Slide 12 — 왜 Snowflake인가
     ✓ AI_COMPLETE — 배치 저장, 매 클릭 무호출
     ✓ Cortex Search — 하이브리드 검색, 1일 증분 인덱싱
     ✓ Cortex Analyst — Semantic Model YAML 기반 NL2SQL
-    ✓ Cortex Agent — Search + Analyst 오케스트레이션
     ✓ ML FORECAST — 118 시리즈 시계열 예측
+    📋 Cortex Agent — DDL 설계 완료 (Trial 제약, 정식 계정 시 즉시 활성화)
   [우] 강조 박스 3개 (대형 텍스트):
     "외부 서버 0개"
     "외부 API 0개"
