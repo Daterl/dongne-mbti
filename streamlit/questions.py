@@ -177,12 +177,12 @@ AXIS_LABELS = {
 #
 # _USER_RAW_BOUNDS: 퀴즈 가중치로 계산한 축별 이론적 raw 평균 범위
 # _DONG_BOUNDS: DONG_PROFILES 테이블의 실제 z-score 범위 (118개 동)
-# 전략적 선택 고려한 정확한 바운드 (2^8 부분집합 전수 탐색으로 산출)
+# 4^8 = 65,536 답변 조합 전수 탐색으로 산출한 정확한 바운드
 _USER_RAW_BOUNDS = {
-    "EI": (-0.6000, 0.6000),
-    "SN": (-0.7000, 0.6000),
-    "TF": (-0.5000, 0.7000),
-    "JP": (-0.7000, 0.5000),
+    "EI": (-0.5000, 0.4800),
+    "SN": (-0.6500, 0.4333),
+    "TF": (-0.4500, 0.7000),
+    "JP": (-0.5500, 0.4333),
 }
 _DONG_BOUNDS = {
     "EI": (-0.67, 1.92),
@@ -227,12 +227,15 @@ def compute_user_scores(answers: list[int]) -> dict[str, float]:
 
 
 def scores_to_mbti(scores: dict[str, float]) -> str:
-    """4축 점수 → MBTI 4글자 문자열."""
+    """4축 점수 → MBTI 4글자 문자열. 부동소수점 -0.0 방지용 epsilon 적용."""
+    def _snap(v, eps=1e-6):
+        return 0.0 if abs(v) < eps else v
+
     return (
-        ("E" if scores["EI"] >= 0 else "I")
-        + ("S" if scores["SN"] >= 0 else "N")
-        + ("T" if scores["TF"] >= 0 else "F")
-        + ("P" if scores["JP"] >= 0 else "J")
+        ("E" if _snap(scores["EI"]) >= 0 else "I")
+        + ("S" if _snap(scores["SN"]) >= 0 else "N")
+        + ("T" if _snap(scores["TF"]) >= 0 else "F")
+        + ("P" if _snap(scores["JP"]) >= 0 else "J")
     )
 
 
@@ -245,11 +248,21 @@ def match_neighborhoods(user_scores: dict[str, float], profiles_df) -> list:
     """
     results = []
     for _, row in profiles_df.iterrows():
+        # NaN 방어: 축 점수가 NULL/NaN이면 건너뜀
+        try:
+            ei = float(row["EI_SCORE"])
+            sn = float(row["SN_SCORE"])
+            tf = float(row["TF_SCORE"])
+            jp = float(row["JP_SCORE"])
+            if any(v != v for v in (ei, sn, tf, jp)):  # NaN check
+                continue
+        except (ValueError, TypeError):
+            continue
         dist = sqrt(
-            (user_scores["EI"] - float(row["EI_SCORE"])) ** 2
-            + (user_scores["SN"] - float(row["SN_SCORE"])) ** 2
-            + (user_scores["TF"] - float(row["TF_SCORE"])) ** 2
-            + (user_scores["JP"] - float(row["JP_SCORE"])) ** 2
+            (user_scores["EI"] - ei) ** 2
+            + (user_scores["SN"] - sn) ** 2
+            + (user_scores["TF"] - tf) ** 2
+            + (user_scores["JP"] - jp) ** 2
         )
         results.append((row.to_dict(), dist))
 

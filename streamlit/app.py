@@ -766,7 +766,7 @@ if not st.session_state.quiz_completed:
 
         # AI 분석 텍스트 표시 (HTML escape로 XSS 방지)
         _raw_dna = st.session_state.get("quiz_ai_dna") or ""
-        ai_dna = _html.escape(_raw_dna.strip()) if _raw_dna.strip() else st.session_state.quiz_dna_text
+        ai_dna = _html.escape(_raw_dna.strip() if _raw_dna.strip() else st.session_state.quiz_dna_text)
         st.markdown(f"""
         <div style="max-width:480px;margin:0 auto 24px;">
             <div class="info-card">
@@ -806,9 +806,10 @@ if not st.session_state.quiz_completed:
             axis_html = ""
             for ax in ["EI", "SN", "TF", "JP"]:
                 uv = scores[ax]
-                dv = float(row_dict.get(f"{ax}_SCORE", 0))
+                _raw_dv = row_dict.get(f"{ax}_SCORE", 0)
+                dv = float(_raw_dv) if _raw_dv == _raw_dv else 0.0  # NaN guard
                 diff = abs(uv - dv)
-                ax_pct = max(0, int(100 - diff / 4 * 100))
+                ax_pct = max(0, min(100, int(100 * __import__('math').exp(-diff * 0.7))))
                 if ax_pct >= 80:
                     bar_color = "linear-gradient(90deg, #2563EB, #60A5FA)"
                     val_color = "#2563EB"
