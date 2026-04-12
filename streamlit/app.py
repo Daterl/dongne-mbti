@@ -19,7 +19,7 @@ import html as _html
 # ── AI 모델 설정 ──────────────────────────────────────────────────────────────
 # AISQL 신함수 AI_COMPLETE + Meta Llama 3.3 70B (2026-04 기준 이 리전 최신 오픈 모델)
 # 'auto' 셀렉터는 본 계정/리전에서 미지원 → 최신 명시 모델로 고정, 업그레이드는 이 상수만 교체
-MODEL_PRIMARY = "llama3.3-70b"        # 주 모델: Meta Llama 3.3 70B, 최신 오픈 모델
+MODEL_PRIMARY = "llama3.1-70b"        # 주 모델: Meta Llama 3.1 70B (ENZO 계정 리전 호환)
 MODEL_FALLBACK = "snowflake-arctic"   # 폴백 모델: Primary 실패 시 Snowflake 네이티브
 
 
@@ -1511,12 +1511,12 @@ with tab2:
     """, unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════════════════════════
-# 탭 3: 시세 전망 (ML FORECAST + AI 분석)
+# 탭 3: 동네 시세 전망 (ML FORECAST + 인구 흐름 + AI 종합 분석)
 # ════════════════════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=3600)
 def load_forecast(sgg: str, emd: str):
-    """PRICE_FORECAST_RESULT에서 ML 예측값 로드 (Issue #16)."""
+    """PRICE_FORECAST_RESULT에서 ML 예측값 로드 (3개월 사전 계산, fallback)."""
     dong_id = f"{sgg}_{emd}"
     try:
         return session.sql(f"""
@@ -1529,22 +1529,92 @@ def load_forecast(sgg: str, emd: str):
     except Exception:
         return pd.DataFrame()
 
+
+def _get_dynamic_forecast(n_periods: int, sgg: str, emd: str):
+    """FORECAST 모델 실시간 호출 — session_state 캐시."""
+    cache_key = f"_fc_{n_periods}"
+    if cache_key not in st.session_state:
+        try:
+            df = session.sql(f"""
+                CALL DONGNE_MBTI.PUBLIC.PRICE_FORECAST!FORECAST(
+                    FORECASTING_PERIODS => {int(n_periods)}
+                )
+            """).to_pandas()
+            # SiS quoted identifier 정규화
+            df.columns = [c.strip('"').upper() for c in df.columns]
+            st.session_state[cache_key] = df
+        except Exception:
+            st.session_state[cache_key] = pd.DataFrame()
+
+    all_df = st.session_state[cache_key]
+    if all_df.empty:
+        return pd.DataFrame()
+
+    dong_id = f"{sgg}_{emd}"
+    # SERIES 값은 '"서초구_반포동"' 형태 (따옴표 포함)
+    mask = all_df["SERIES"].astype(str).str.strip('"') == dong_id
+    result = all_df.loc[mask, ["TS", "FORECAST", "LOWER_BOUND", "UPPER_BOUND"]].copy()
+    if not result.empty:
+        result = result.rename(columns={"FORECAST": "FORECAST_PRICE"})
+    return result
+
+
+@st.cache_data(ttl=3600)
+def _load_population_movement(sgg: str):
+    """인구이동 데이터 — DB 없으면 graceful skip."""
+    try:
+        return session.sql(f"""
+            SELECT MOVEMENT_TYPE, SUM(POPULATION) AS TOTAL
+            FROM KOREA_REAL_ESTATE_APARTMENT_MARKET_INTELLIGENCE
+                .HACKATHON_2026.REGION_POPULATION_MOVEMENT
+            WHERE SGG = '{sgg}' AND YYYYMMDD >= '2021-01-01'
+            GROUP BY MOVEMENT_TYPE
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+
+_DOMAIN_CONTEXT = {
+    "서초구": "서초구는 의료/뷰티 인프라 허브이자 고소득 주거지로, 강남 생활권의 핵심입니다.",
+    "영등포구": "영등포구는 여의도 직장 접근성과 교통 허브로, 직주근접 수요가 안정적입니다.",
+    "중구": "중구는 도심 상업지로, 직주근접 가치와 관광/상업 인프라가 강점입니다.",
+}
+
+
 with tab3:
     st.markdown("""
     <div class="tab-header">
-        <h3>📊 시세 전망 — 실거래가 & ML 예측</h3>
-        <p>아파트 실거래가 추이와 AI 기반 향후 3개월 가격 예측으로 매매 타이밍을 판단하세요</p>
+        <h3>📊 동네 시세 전망</h3>
+        <p>실거래가 추이 + ML 장기 예측 + 인구 흐름 + AI 종합 분석으로 매매 타이밍을 판단하세요</p>
     </div>
     """, unsafe_allow_html=True)
 
-    col_t1, col_t2 = st.columns([1, 2])
-    with col_t1:
+    # ── 구/동 선택 + 예측 기간 ──
+    sel1, sel2 = st.columns([1, 2])
+    with sel1:
         t3_gu = st.selectbox("구 선택 ", sorted(load_mbti_result()["SGG"].unique()), key="t3_gu")
-    with col_t2:
+    with sel2:
         t3_dong_list = sorted(load_mbti_result()[load_mbti_result()["SGG"] == t3_gu]["EMD"].unique())
         t3_dong = st.selectbox("동 선택 ", t3_dong_list, key="t3_dong")
 
+    forecast_period = st.radio(
+        "예측 기간",
+        ["3개월", "12개월", "36개월", "60개월 (5년)"],
+        horizontal=True,
+        index=0,
+        key="t3_fc_period",
+    )
+    _PERIOD_MAP = {"3개월": 3, "12개월": 12, "36개월": 36, "60개월 (5년)": 60}
+    n_periods = _PERIOD_MAP[forecast_period]
+
     price_df = load_price_history(t3_gu, t3_dong)
+
+    # 개인화 섹션에서 참조할 변수 초기화 (price_df 비어있어도 안전)
+    has_forecast = False
+    forecast_df = pd.DataFrame()
+    latest = 0
+    pop_net = None
+    price_delta = 0
 
     if price_df.empty:
         st.info(f"📭 {t3_gu} {t3_dong}의 아파트 실거래가 데이터가 없습니다.")
@@ -1552,130 +1622,391 @@ with tab3:
         price_df["YYYYMMDD"] = pd.to_datetime(price_df["YYYYMMDD"].astype(str), errors="coerce")
         price_df = price_df.dropna(subset=["YYYYMMDD"]).sort_values("YYYYMMDD")
 
-        # ML 예측 데이터 로드
-        forecast_df = load_forecast(t3_gu, t3_dong)
+        # ── ML 예측 로드 (실시간 CALL + 3개월 사전계산 fallback) ──
+        # 캐시는 전체 시리즈를 n_periods별로 1회 저장, Python에서 dong 필터
+        if f"_fc_{n_periods}" not in st.session_state:
+            with st.spinner(f"ML 모델이 {forecast_period} 예측 중..."):
+                forecast_df = _get_dynamic_forecast(n_periods, t3_gu, t3_dong)
+        else:
+            forecast_df = _get_dynamic_forecast(n_periods, t3_gu, t3_dong)
+
+        fc_fallback = False
+        if forecast_df.empty:
+            forecast_df = load_forecast(t3_gu, t3_dong)
+            if not forecast_df.empty and n_periods != 3:
+                fc_fallback = True
+
         has_forecast = not forecast_df.empty
 
         if has_forecast:
+            forecast_df = forecast_df.copy()
             forecast_df["TS"] = pd.to_datetime(forecast_df["TS"])
             forecast_df["FORECAST_PRICE"] = pd.to_numeric(forecast_df["FORECAST_PRICE"], errors="coerce")
             forecast_df["LOWER_BOUND"] = pd.to_numeric(forecast_df["LOWER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
             forecast_df["UPPER_BOUND"] = pd.to_numeric(forecast_df["UPPER_BOUND"], errors="coerce").fillna(forecast_df["FORECAST_PRICE"])
+            # coercion 후 전체 NaN이면 예측 없음으로 처리
+            if forecast_df["FORECAST_PRICE"].isna().all():
+                has_forecast = False
+                forecast_df = pd.DataFrame()
 
-        # ── 기간 선택 ──
-        price_full = price_df.copy()
-        period_options = {"최근 12개월": 12, "최근 24개월": 24, "최근 36개월": 36, "전체": len(price_full)}
-        selected_period = st.selectbox("조회 기간", list(period_options.keys()), index=2, key="t3_period")
-        price_df = price_full.tail(period_options[selected_period])
+        if fc_fallback:
+            st.caption("⚠️ 실시간 예측이 불가하여 사전 계산된 3개월 예측을 표시합니다.")
 
-        price_df = price_df.copy()
+        # ── 통합 차트: 실거래 + ML 예측 (temporal X축 통일) ──
+        fc_label = f"향후 {n_periods}개월" if has_forecast and not fc_fallback else ("향후 3개월 (fallback)" if fc_fallback else "")
+        st.markdown(f"**📈 시세 추이 & ML 예측** {fc_label}")
 
-        # ── 차트 1: 실거래 평당가 (Altair — 호버 툴팁 + SiS 호환) ──
-        st.markdown(f"**📈 실거래 평당가 추이** ({selected_period})")
-        nearest = alt.selection_single(nearest=True, on="mouseover", fields=["YYYYMMDD"], empty="none")
-        base = alt.Chart(price_df).encode(
-            x=alt.X("YYYYMMDD:T", title="",
-                     axis=alt.Axis(format="%y년 %m월", labelAngle=-45,
-                                   tickCount=8)),
-            y=alt.Y("AVG_PRICE:Q", title="평당가 (만원)", scale=alt.Scale(zero=False)),
+        # 과거 데이터
+        past_chart = price_df[["YYYYMMDD", "AVG_PRICE"]].rename(
+            columns={"YYYYMMDD": "TS", "AVG_PRICE": "PRICE"}
+        ).copy()
+        past_chart["TYPE"] = "실거래"
+        past_chart["LOWER"] = past_chart["PRICE"]
+        past_chart["UPPER"] = past_chart["PRICE"]
+
+        if has_forecast:
+            future_chart = forecast_df[["TS", "FORECAST_PRICE", "LOWER_BOUND", "UPPER_BOUND"]].rename(
+                columns={"FORECAST_PRICE": "PRICE", "LOWER_BOUND": "LOWER", "UPPER_BOUND": "UPPER"}
+            ).copy()
+            future_chart["TYPE"] = "ML 예측"
+            combined = pd.concat([past_chart, future_chart], ignore_index=True).sort_values("TS")
+        else:
+            combined = past_chart.copy()
+
+        today_ts = price_df["YYYYMMDD"].max()
+
+        # 호버 셀렉션
+        nearest = alt.selection_single(nearest=True, on="mouseover", fields=["TS"], empty="none")
+
+        # Layer 1: 과거 실선 (파란)
+        past_data = combined[combined["TYPE"] == "실거래"]
+        past_line = alt.Chart(past_data).mark_line(
+            color="#60A5FA", strokeWidth=2.5
+        ).encode(
+            x=alt.X("TS:T", title="",
+                     axis=alt.Axis(format="%y년 %m월", labelAngle=-45, tickCount=10)),
+            y=alt.Y("PRICE:Q", title="평당가 (만원)", scale=alt.Scale(zero=False)),
         )
-        line = base.mark_line(color="#60A5FA", strokeWidth=2.5)
-        points = base.mark_circle(size=50, color="#60A5FA").encode(
+
+        layers = [past_line]
+
+        if has_forecast:
+            fc_data = combined[combined["TYPE"] == "ML 예측"]
+
+            # Layer 2: 신뢰구간 band (빨강 반투명)
+            fc_band = alt.Chart(fc_data).mark_area(
+                opacity=0.12, color="#F87171"
+            ).encode(
+                x="TS:T",
+                y=alt.Y("LOWER:Q", title=""),
+                y2="UPPER:Q",
+            )
+            layers.append(fc_band)
+
+            # Layer 3: 예측 대시 라인 (빨강)
+            fc_line = alt.Chart(fc_data).mark_line(
+                color="#F87171", strokeWidth=2.5, strokeDash=[6, 4]
+            ).encode(x="TS:T", y="PRICE:Q")
+            layers.append(fc_line)
+
+            # Layer 4: 오늘 기준선 (회색 점선)
+            today_rule = alt.Chart(pd.DataFrame({"x": [today_ts]})).mark_rule(
+                color="#9CA3AF", strokeDash=[4, 4], strokeWidth=1.5
+            ).encode(x="x:T")
+            layers.append(today_rule)
+
+        # Layer 5: 호버 포인트 (전체 데이터)
+        hover_pts = alt.Chart(combined).mark_circle(size=60).encode(
+            x="TS:T",
+            y="PRICE:Q",
+            color=alt.condition(
+                alt.datum.TYPE == "실거래",
+                alt.value("#60A5FA"),
+                alt.value("#F87171"),
+            ),
             opacity=alt.condition(nearest, alt.value(1), alt.value(0)),
             tooltip=[
-                alt.Tooltip("YYYYMMDD:T", title="날짜", format="%Y년 %m월"),
-                alt.Tooltip("AVG_PRICE:Q", title="평당가", format=",.0f"),
+                alt.Tooltip("TS:T", title="날짜", format="%Y년 %m월"),
+                alt.Tooltip("PRICE:Q", title="평당가", format=",.0f"),
+                alt.Tooltip("TYPE:N", title="구분"),
             ],
         ).add_selection(nearest)
-        rule = base.mark_rule(color="gray", strokeDash=[4, 4]).encode(
+        layers.append(hover_pts)
+
+        # Layer 6: 크로스헤어 룰
+        crosshair = alt.Chart(combined).mark_rule(
+            color="gray", strokeDash=[4, 4]
+        ).encode(
+            x="TS:T",
             opacity=alt.condition(nearest, alt.value(0.5), alt.value(0)),
         ).transform_filter(nearest)
-        chart1 = (line + points + rule).properties(height=340).configure_view(
-            strokeWidth=0,
-        )
-        st.altair_chart(chart1, use_container_width=True)
+        layers.append(crosshair)
 
-        # ── 차트 2: ML 예측 (Altair — SiS 호환) ──
-        if has_forecast:
-            # 실제 예측 기간: 고유 월 수 기준
-            fc_months = forecast_df["TS"].dt.to_period("M").nunique()
-            st.markdown(f"**🔮 ML 가격 예측** (향후 {fc_months}개월)")
-
-            # 날짜를 문자열 라벨로 변환 (각 포인트마다 표시)
-            forecast_df = forecast_df.copy()
-            forecast_df["날짜"] = forecast_df["TS"].dt.strftime("%m/%d")
-            date_list = forecast_df["날짜"].tolist()
-
-            fc_nearest = alt.selection_single(nearest=True, on="mouseover", fields=["날짜"], empty="none")
-            band = alt.Chart(forecast_df).mark_area(opacity=0.2, color="#F87171").encode(
-                x=alt.X("날짜:N", title="", sort=date_list,
-                         axis=alt.Axis(labelAngle=-45)),
-                y=alt.Y("LOWER_BOUND:Q", title="예측 평당가 (만원)", scale=alt.Scale(zero=False)),
-                y2="UPPER_BOUND:Q",
-            )
-            fc_line = alt.Chart(forecast_df).mark_line(
-                color="#F87171", strokeWidth=2.5, strokeDash=[6, 4],
-            ).encode(
-                x=alt.X("날짜:N", sort=date_list),
-                y="FORECAST_PRICE:Q",
-            )
-            fc_points = alt.Chart(forecast_df).mark_point(
-                size=80, color="#F87171", shape="diamond", filled=True,
-            ).encode(
-                x=alt.X("날짜:N", sort=date_list),
-                y="FORECAST_PRICE:Q",
-                opacity=alt.condition(fc_nearest, alt.value(1), alt.value(0.7)),
-                tooltip=[
-                    alt.Tooltip("날짜:N", title="날짜"),
-                    alt.Tooltip("FORECAST_PRICE:Q", title="예측가", format=",.0f"),
-                    alt.Tooltip("LOWER_BOUND:Q", title="하한", format=",.0f"),
-                    alt.Tooltip("UPPER_BOUND:Q", title="상한", format=",.0f"),
-                ],
-            ).add_selection(fc_nearest)
-            chart2 = (band + fc_line + fc_points).properties(height=280).configure_view(strokeWidth=0)
-            st.altair_chart(chart2, use_container_width=True)
+        chart = alt.layer(*layers).properties(height=400).configure_view(strokeWidth=0)
+        st.altair_chart(chart, use_container_width=True)
 
         # ── 메트릭 ──
+        latest = price_df.iloc[-1]["AVG_PRICE"]
         if len(price_df) >= 2:
-            latest = price_df.iloc[-1]["AVG_PRICE"]
             prev = price_df.iloc[-2]["AVG_PRICE"]
-            delta = latest - prev
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("최근 평당가", f"{latest:,.0f}만원", f"{delta:+,.0f}만원")
-            m2.metric("차트 기간", f"{price_df['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_df['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}")
-            m3.metric("전체 데이터", f"{len(price_full)}개월")
-            if has_forecast:
-                pred_latest = forecast_df.iloc[-1]["FORECAST_PRICE"]
-                pred_delta = pred_latest - latest
-                fc_end = forecast_df["TS"].max().strftime("%m/%d")
-                m4.metric(f"예측 ({fc_end})", f"{pred_latest:,.0f}만원", f"{pred_delta:+,.0f}만원")
+            price_delta = latest - prev
+        else:
+            price_delta = 0
 
-        # ── AI 이사 전망 ──
+        if has_forecast:
+            m1, m2, m3 = st.columns(3)
+            pred_latest = forecast_df["FORECAST_PRICE"].iloc[-1]
+            pred_delta = pred_latest - latest
+            pct_change = (pred_latest - latest) / latest * 100 if latest > 0 else 0
+            fc_end = forecast_df["TS"].max().strftime("%Y.%m")
+            m1.metric("최근 평당가", f"{latest:,.0f}만원", f"{price_delta:+,.0f}만원")
+            m2.metric(f"예측가 ({fc_end})", f"{pred_latest:,.0f}만원", f"{pred_delta:+,.0f}만원")
+            m3.metric("예측 변화율", f"{pct_change:+.1f}%")
+        else:
+            m1, m2 = st.columns(2)
+            m1.metric("최근 평당가", f"{latest:,.0f}만원", f"{price_delta:+,.0f}만원")
+            m2.metric("데이터 기간", f"{price_df['YYYYMMDD'].iloc[0].strftime('%Y.%m')} ~ {price_df['YYYYMMDD'].iloc[-1].strftime('%Y.%m')}")
+
+        # ── 인구 흐름 (compact — graceful skip) ──
+        pop_df = _load_population_movement(t3_gu)
+        pop_net = None
+        if not pop_df.empty:
+            try:
+                net_row = pop_df[pop_df["MOVEMENT_TYPE"] == "순이동"]
+                if not net_row.empty and pd.notna(net_row["TOTAL"].iloc[0]):
+                    pop_net = int(net_row["TOTAL"].iloc[0])
+                    direction = "전입 우세 — 수요 지속" if pop_net > 0 else "전출 우세 — 수요 약화"
+                    st.metric(
+                        "👥 최근 5년 인구 흐름",
+                        f"순이동 {pop_net:+,}명",
+                        direction,
+                        delta_color="normal" if pop_net > 0 else "inverse",
+                    )
+            except Exception:
+                pass
+
+        # ── AI 종합 전망 (자동 생성, session_state 캐시) ──
         st.divider()
-        if st.button("🤖 AI 이사 전망 생성", key="forecast_btn"):
-            with st.spinner("AI가 시세를 분석하고 있어요..."):
+        st.markdown("**🤖 AI 종합 전망**")
+
+        ai_key = f"_ai_{t3_gu}_{t3_dong}_{n_periods}"
+        if ai_key not in st.session_state:
+            with st.spinner("AI가 시세·인구·지역 데이터를 종합 분석 중..."):
                 try:
                     recent_prices = price_df.tail(6)["AVG_PRICE"].tolist()
+
+                    # 시세 정보
                     ml_info = ""
                     if has_forecast:
-                        pred_vals = forecast_df["FORECAST_PRICE"].tolist()
-                        ml_info = f" ML 예측 향후 {len(pred_vals)}개월: {[round(v) for v in pred_vals]}만원."
-                    forecast_prompt = (
-                        f"{t3_gu} {t3_dong} 최근 6개월 아파트 매매 평당가: {[round(p) for p in recent_prices]}만원."
-                        f"{ml_info} 이 데이터를 바탕으로 향후 이사 타이밍에 대한 짧고 솔직한 전망을 2-3문장으로 알려줘. "
-                        f"트렌드 방향과 이사 적합성을 판단해줘."
-                    )
-                    forecast = session.sql(f"""
-                        SELECT AI_COMPLETE(
-                            '{MODEL_PRIMARY}',
-                            '{forecast_prompt.replace("'", "''")}'
-                        ) AS FORECAST
-                    """).collect()[0]["FORECAST"]
+                        fc_end_str = forecast_df["TS"].max().strftime("%Y년 %m월")
+                        fc_pct = (forecast_df["FORECAST_PRICE"].iloc[-1] - latest) / latest * 100
+                        ml_info = (
+                            f"\n- ML {n_periods}개월 예측 ({fc_end_str}까지): "
+                            f"최종 {forecast_df['FORECAST_PRICE'].iloc[-1]:,.0f}만원 (변화율 {fc_pct:+.1f}%)"
+                            f"\n- 90% 신뢰구간: {forecast_df['LOWER_BOUND'].iloc[-1]:,.0f}"
+                            f" ~ {forecast_df['UPPER_BOUND'].iloc[-1]:,.0f}만원"
+                        )
 
-                    st.markdown("#### 🏡 AI 이사 전망")
-                    st.info(forecast)
+                    # 인구 정보
+                    pop_info = ""
+                    if pop_net is not None:
+                        flow_dir = "전입 우세" if pop_net > 0 else "전출 우세"
+                        pop_info = f"\n\n[인구 흐름]\n- 최근 5년 순이동: {pop_net:+,}명 ({flow_dir})"
+
+                    # 지역 특성
+                    domain_ctx = _DOMAIN_CONTEXT.get(t3_gu, f"{t3_gu} 지역입니다.")
+
+                    # 6개월 변화율 계산
+                    p_first, p_last = recent_prices[0], recent_prices[-1]
+                    p_6m_pct = (p_last - p_first) / p_first * 100 if p_first > 0 else 0
+
+                    prompt = (
+                        f"반드시 한국어로 답변하세요. 영어 사용 금지.\n"
+                        f"당신은 서울 부동산 시장 10년차 전문 분석가입니다. "
+                        f"KB부동산 리서치 보고서 수준의 전문 분석 리포트를 작성하세요.\n\n"
+                        f"[시세 데이터]\n"
+                        f"- {t3_gu} {t3_dong} 최근 6개월 평당가 추이: "
+                        f"{[round(p) for p in recent_prices]}만원\n"
+                        f"- 6개월 변화율: {p_6m_pct:+.1f}%\n"
+                        f"- 최근 평당가: {round(recent_prices[-1])}만원"
+                        f"{ml_info}"
+                        f"{pop_info}\n\n"
+                        f"[지역 특성]\n- {domain_ctx}\n\n"
+                        f"[출력 형식 — 반드시 아래 3단 구조로 작성. 각 섹션 제목을 그대로 사용.]\n\n"
+                        f"📈 시세 트렌드 분석\n"
+                        f"- 최근 6개월 평당가 흐름을 월별로 상세 분석 (시작가→현재가, 변화율)\n"
+                        f"- ML 예측 모델 결과를 인용하여 향후 시세 방향 전망\n"
+                        f"- 현재 시세가 상승/하락/보합 중 어느 국면인지 전문가 판단\n"
+                        f"- 서울 전체 또는 해당 구 평균 대비 이 동네의 위치 언급\n"
+                        f"- 3-4문장으로 작성\n\n"
+                        f"📊 수요·입지 분석\n"
+                        f"- 인구 순이동 데이터를 근거로 실수요 강도 판단 (있을 때만)\n"
+                        f"- 해당 지역의 입지 특성 (교통, 인프라, 생활권) 분석\n"
+                        f"- 수요 강세/약세 신호를 종합하여 실수요 전망\n"
+                        f"- 3-4문장으로 작성\n\n"
+                        f"💡 투자 판단 및 전략\n"
+                        f"- 위 시세 트렌드 + 수요 분석을 종합\n"
+                        f"- 매수/매도/관망 중 하나를 명확히 제시\n"
+                        f"- 해당 판단의 핵심 근거 2가지를 숫자와 함께 제시\n"
+                        f"- 매수라면 적정 진입 시점/전략, 관망이라면 주시할 지표 제안\n"
+                        f"- 2-3문장으로 작성\n\n"
+                        f"[필수 규칙]\n"
+                        f"- 모든 숫자에 단위(만원, %, 명) 포함\n"
+                        f"- '다양한', '좋은 환경', '편리한 교통' 같은 일반론 금지\n"
+                        f"- 반드시 위 데이터의 구체 숫자를 인용하여 분석\n"
+                        f"- 전문 분석가의 리포트답게 객관적이고 논리적으로 작성"
+                    )
+                    # $$ delimiter로 SQL 인젝션 안전하게 처리
+                    safe_prompt = prompt.replace("$$", "")
+                    ai_result = session.sql(
+                        f"SELECT AI_COMPLETE('{MODEL_PRIMARY}', $${safe_prompt}$$) AS FORECAST"
+                    ).collect()[0]["FORECAST"]
+                    st.session_state[ai_key] = ai_result if ai_result else ""
                 except Exception as e:
-                    st.error(f"전망 생성 중 오류가 발생했습니다: {str(e)[:100]}")
+                    st.session_state[ai_key] = f"__ERR__{str(e)[:150]}"
+
+        cached_ai = st.session_state.get(ai_key, "")
+        if cached_ai.startswith("__ERR__"):
+            st.error(f"AI 전망 생성 중 오류: {cached_ai[7:]}")
+        elif cached_ai:
+            # AI 응답 정리: 따옴표 제거 + 리터럴 \n → 실제 줄바꿈
+            clean_ai = cached_ai.strip().strip('"').replace("\\n", "\n")
+            st.markdown(clean_ai)
+        else:
+            st.info("AI 전망을 생성할 수 없습니다.")
+
+    # ── 🧬 성격 × 이 동네 (개인화 reveal / 퀴즈 CTA) ──
+    # 변수 초기화 (line 1612)로 price_df 비어있어도 안전
+    st.divider()
+    _AXIS_INTERPRET = {
+        "EI": {True: "외향적·활동적 성향", False: "내향적·조용한 성향"},
+        "SN": {True: "문화적·감각적 성향", False: "실용적·현실적 성향"},
+        "TF": {True: "이성적·투자 중시 성향", False: "감성적·생활 만족 중시 성향"},
+        "JP": {True: "변화 수용적 성향", False: "안정 추구 성향"},
+    }
+
+    if st.session_state.get("quiz_user_mbti"):
+        # ── 퀴즈 완료: 개인화 섹션 ──
+        st.markdown("**🧬 당신의 성격 × 이 동네**")
+        st.caption("퀴즈 결과 + 시세 예측 + 인구 흐름 + 동네 성격을 AI가 종합 판단합니다")
+
+        user_mbti = st.session_state.quiz_user_mbti
+        user_scores = st.session_state.quiz_user_scores
+        profiles_df = load_profiles()
+        dong_row = profiles_df[
+            (profiles_df["SGG"] == t3_gu) & (profiles_df["EMD"] == t3_dong)
+        ]
+
+        if dong_row.empty:
+            pass  # 동네 프로필 없으면 개인화 섹션 숨김
+        else:
+            dong_info = dong_row.iloc[0]
+            dong_mbti = dong_info.get("MBTI", "")
+            dong_sentiment = dong_info.get("SENTIMENT_SCORE", None)
+            dong_type = dong_info.get("NEIGHBORHOOD_TYPE", "")
+
+            # 축별 해석 생성
+            user_tf = user_scores.get("TF", 0)
+            user_jp = user_scores.get("JP", 0)
+            tf_text = _AXIS_INTERPRET["TF"][user_tf > 0]
+            jp_text = _AXIS_INTERPRET["JP"][user_jp > 0]
+
+            # MBTI 뱃지 표시 (수치 대신 투자 스타일 표현)
+            ei_text = _AXIS_INTERPRET["EI"][user_scores.get("EI", 0) > 0]
+            sn_text = _AXIS_INTERPRET["SN"][user_scores.get("SN", 0) > 0]
+            style_tags = f"{ei_text} · {tf_text}"  # 핵심 2개 축만 표시
+            st.markdown(
+                f'<div class="info-card">'
+                f'👤 나의 투자 스타일: <b>{user_mbti}</b> '
+                f'({style_tags})'
+                f'&nbsp;&nbsp;↔&nbsp;&nbsp;'
+                f'🏘️ 동네 성격: <b>{dong_mbti}</b> ({dong_type})'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            # AI 개인화 조언 (session_state 캐시)
+            fit_key = f"_ai_fit_{t3_gu}_{t3_dong}_{n_periods}"
+            if fit_key not in st.session_state:
+                with st.spinner("AI가 당신의 성격과 이 동네의 미래를 매칭 중..."):
+                    try:
+                        # 시세/인구 정보 (Tab 3 기존 변수 재사용)
+                        price_info = ""
+                        if has_forecast:
+                            fc_pct = (forecast_df["FORECAST_PRICE"].iloc[-1] - latest) / latest * 100 if latest > 0 else 0
+                            price_info = f"\n- ML {n_periods}개월 시세 예측: {fc_pct:+.1f}%"
+
+                        pop_info = ""
+                        if pop_net is not None:
+                            flow_dir = "전입 우세" if pop_net > 0 else "전출 우세"
+                            pop_info = f"\n- 인구 순이동: {pop_net:+,}명 ({flow_dir})"
+
+                        sentiment_info = ""
+                        if dong_sentiment is not None and str(dong_sentiment) not in ("None", "nan", ""):
+                            sent_val = float(dong_sentiment)
+                            sent_label = "긍정적" if sent_val > 0 else "부정적" if sent_val < 0 else "중립"
+                            sentiment_info = f"\n- 동네 감성 점수: {sent_val:+.2f} ({sent_label})"
+
+                        domain_ctx = _DOMAIN_CONTEXT.get(t3_gu, f"{t3_gu} 지역입니다.")
+
+                        fit_prompt = (
+                            f"반드시 한국어로 답변하세요. 영어 사용 금지.\n\n"
+                            f"당신은 10년 경력의 부동산 컨설턴트이자 사용자의 오래된 친구입니다. "
+                            f"전문 지식을 갖추고 있지만, 친구에게 말하듯 편하게 조언해주세요.\n\n"
+                            f"[사용자 투자 스타일]\n"
+                            f"- {tf_text}\n"
+                            f"  → {'일상의 만족도, 동네 분위기, 편의시설 접근성이 시세보다 중요' if user_tf <= 0 else '자산 가치 상승 가능성과 투자 수익률을 최우선으로 고려'}\n"
+                            f"- {jp_text}\n"
+                            f"  → {'새로운 동네에서 새 라이프스타일을 시작하는 것에 거부감 없음' if user_jp > 0 else '이미 검증된, 안정적이고 예측 가능한 동네를 선호'}\n\n"
+                            f"[이 동네 정보]\n"
+                            f"- {t3_gu} {t3_dong}: {dong_type}"
+                            f"{price_info}"
+                            f"{pop_info}"
+                            f"{sentiment_info}\n\n"
+                            f"[지역 특성]\n- {domain_ctx}\n\n"
+                            f"[출력 형식 — 반드시 아래 3단 구조로 작성. 각 섹션 제목을 그대로 사용.]\n\n"
+                            f"💪 당신의 투자 스타일\n"
+                            f"사용자의 투자 스타일을 친구처럼 편하게 요약. "
+                            f"'당신은 ~한 스타일이니까' 로 시작. "
+                            f"이 스타일이 부동산 선택에서 어떤 의미인지 2문장으로.\n\n"
+                            f"🏘️ 이 동네와의 궁합\n"
+                            f"이 동네의 특성(분위기, 인프라, 시세 흐름, 인구 추세)이 "
+                            f"사용자 스타일과 어떻게 맞거나 안 맞는지 구체적으로 분석. "
+                            f"3-4문장. 동네 이름과 구체적 특성을 반드시 언급.\n\n"
+                            f"💬 맞춤 조언\n"
+                            f"매수/관망/매도 중 하나를 명확히 제시. "
+                            f"'당신 스타일에는 ~' 이유를 1-2문장으로. "
+                            f"다른 투자 스타일이면 완전히 다른 판단이 나와야 함.\n\n"
+                            f"[필수 규칙]\n"
+                            f"- 친구에게 말하듯 편한 어투 (~해, ~거야, ~것 같아)\n"
+                            f"- 숫자를 직접 나열하지 말고 해석해서 전달\n"
+                            f"- 동네 이름과 구체적 특성을 언급하여 맞춤 느낌 강화"
+                        )
+                        safe_prompt = fit_prompt.replace("$$", "")
+                        ai_fit = session.sql(
+                            f"SELECT AI_COMPLETE('{MODEL_PRIMARY}', $${safe_prompt}$$) AS RESULT"
+                        ).collect()[0]["RESULT"]
+                        st.session_state[fit_key] = ai_fit if ai_fit else ""
+                    except Exception as e:
+                        st.session_state[fit_key] = f"__ERR__{str(e)[:150]}"
+
+            cached_fit = st.session_state.get(fit_key, "")
+            if cached_fit.startswith("__ERR__"):
+                st.error(f"맞춤 분석 생성 중 오류: {cached_fit[7:]}")
+            elif cached_fit:
+                clean_fit = cached_fit.strip().strip('"').replace("\\n", "\n")
+                st.markdown(clean_fit)
+            else:
+                st.info("맞춤 분석을 생성할 수 없습니다.")
+    else:
+        # ── 퀴즈 미완료: CTA ──
+        st.markdown("""
+        <div class="info-card">
+            <b>🧬 나에게 맞는 맞춤 분석을 받으려면?</b><br>
+            성향 테스트를 완료하면, 당신의 성격에 맞는 <b>개인화된 투자 조언</b>을 받을 수 있어요.<br>
+            같은 동네라도 성격에 따라 다른 조언이 나옵니다.
+        </div>
+        """, unsafe_allow_html=True)
 
     # ── 탭 3 → 탭 4 연결 CTA ──
     st.markdown("""
