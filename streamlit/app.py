@@ -1609,6 +1609,13 @@ with tab3:
 
     price_df = load_price_history(t3_gu, t3_dong)
 
+    # 개인화 섹션에서 참조할 변수 초기화 (price_df 비어있어도 안전)
+    has_forecast = False
+    forecast_df = pd.DataFrame()
+    latest = 0
+    pop_net = None
+    price_delta = 0
+
     if price_df.empty:
         st.info(f"📭 {t3_gu} {t3_dong}의 아파트 실거래가 데이터가 없습니다.")
     else:
@@ -1847,6 +1854,7 @@ with tab3:
             st.info("AI 전망을 생성할 수 없습니다.")
 
     # ── 🧬 성격 × 이 동네 (개인화 reveal / 퀴즈 CTA) ──
+    # 변수 초기화 (line 1612)로 price_df 비어있어도 안전
     st.divider()
     _AXIS_INTERPRET = {
         "EI": {True: "외향적·활동적 성향", False: "내향적·조용한 성향"},
