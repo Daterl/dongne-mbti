@@ -1574,6 +1574,29 @@ def _load_population_movement(sgg: str):
         return pd.DataFrame()
 
 
+def _format_ai_report(raw: str) -> str:
+    """AI 응답을 정리: 따옴표 제거 + 리터럴 \\n → 줄바꿈 + 이모지 헤더를 ### 로 변환."""
+    text = raw.strip().strip('"').replace("\\n", "\n")
+    # 프롬프트에 지정한 정확한 섹션 제목만 사용 (fallback 제거로 중복 매칭 방지)
+    _SECTION_TITLES = [
+        "📈 시세 트렌드 분석",
+        "📊 수요·입지 분석",
+        "💡 투자 판단 및 전략",
+        "💪 당신의 투자 스타일",
+        "🏘️ 이 동네와의 궁합",
+        "💬 맞춤 조언",
+    ]
+    for title in _SECTION_TITLES:
+        # 이미 ### 처리된 경우 스킵
+        if title in text and f"### {title}" not in text:
+            text = text.replace(title + " ", f"\n\n**{title}**\n\n")
+            text = text.replace(title + "\n", f"\n\n**{title}**\n\n")
+    # 앞쪽 빈줄 정리
+    while text.startswith("\n"):
+        text = text[1:]
+    return text
+
+
 _DOMAIN_CONTEXT = {
     "서초구": "서초구는 의료/뷰티 인프라 허브이자 고소득 주거지로, 강남 생활권의 핵심입니다.",
     "영등포구": "영등포구는 여의도 직장 접근성과 교통 허브로, 직주근접 수요가 안정적입니다.",
@@ -1869,9 +1892,7 @@ with tab3:
         if cached_ai.startswith("__ERR__"):
             st.error(f"AI 전망 생성 중 오류: {cached_ai[7:]}")
         elif cached_ai:
-            # AI 응답 정리: 따옴표 제거 + 리터럴 \n → 실제 줄바꿈
-            clean_ai = cached_ai.strip().strip('"').replace("\\n", "\n")
-            st.markdown(clean_ai)
+            st.markdown(_format_ai_report(cached_ai))
         else:
             st.info("AI 전망을 생성할 수 없습니다.")
 
@@ -1994,8 +2015,7 @@ with tab3:
             if cached_fit.startswith("__ERR__"):
                 st.error(f"맞춤 분석 생성 중 오류: {cached_fit[7:]}")
             elif cached_fit:
-                clean_fit = cached_fit.strip().strip('"').replace("\\n", "\n")
-                st.markdown(clean_fit)
+                st.markdown(_format_ai_report(cached_fit))
             else:
                 st.info("맞춤 분석을 생성할 수 없습니다.")
     else:
