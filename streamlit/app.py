@@ -14,6 +14,7 @@ from questions import (
     match_neighborhoods, compute_match_pct, reset_quiz_state, generate_user_dna_text,
 )
 import time
+import html as _html
 
 # ── AI 모델 설정 ──────────────────────────────────────────────────────────────
 # AISQL 신함수 AI_COMPLETE + Meta Llama 3.3 70B (2026-04 기준 이 리전 최신 오픈 모델)
@@ -475,9 +476,9 @@ st.markdown("""
     transition: width 0.6s ease;
 }
 .quiz-emoji { font-size: 48px; text-align: center; margin-bottom: 8px; }
-.quiz-title { font-size: 14px; text-align: center; opacity: 0.5; font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
+.quiz-title { font-size: 14px; text-align: center; opacity: 0.6; font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
 .quiz-question { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 24px; line-height: 1.5; }
-.quiz-step-label { text-align: center; font-size: 13px; opacity: 0.4; margin-bottom: 16px; }
+.quiz-step-label { text-align: center; font-size: 13px; opacity: 0.55; margin-bottom: 16px; }
 .pulse-emoji { font-size: 64px; animation: pulse 1.5s ease-in-out infinite; text-align: center; margin: 40px 0 16px; }
 .result-dna-card {
     border-radius: 24px; padding: 32px 24px; color: white; text-align: center;
@@ -495,6 +496,7 @@ st.markdown("""
     border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 4px 16px rgba(0,0,0,0.06);
     animation: fadeSlideIn 0.4s ease;
 }
+.match-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
 .match-card img { max-width: 56px; max-height: 56px; object-fit: contain; }
 .match-rank { font-size: 13px; font-weight: 700; opacity: 0.5; letter-spacing: 1px; margin-bottom: 8px; }
 .match-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
@@ -602,16 +604,16 @@ if not st.session_state.quiz_completed:
         with c1:
             if st.button("🧭 시작하기", use_container_width=True, type="primary"):
                 st.session_state.quiz_step = 1
-                st.rerun()
+                st.experimental_rerun()
         with c2:
             if st.button("바로 둘러보기 →", use_container_width=True):
                 st.session_state.quiz_completed = True
-                st.rerun()
+                st.experimental_rerun()
 
     # ── Step 1-8: 질문 ────────────────────────────────────────────────────
     elif 1 <= step <= 8:
         q = QUESTIONS[step - 1]
-        pct = int(step / 8 * 100)
+        pct = int((step - 1) / 8 * 100)
 
         st.markdown(f"""
         <div class="quiz-wrap">
@@ -627,13 +629,25 @@ if not st.session_state.quiz_completed:
             if st.button(ot, key=f"q{step}_o{oi}", use_container_width=True):
                 st.session_state.quiz_answers.append(oi)
                 st.session_state.quiz_step = step + 1
-                st.rerun()
+                st.experimental_rerun()
+
+        if step > 1:
+            if st.button("← 이전 질문", key=f"back_{step}"):
+                st.session_state.quiz_answers.pop()
+                st.session_state.quiz_step = step - 1
+                st.experimental_rerun()
 
     # ── Step 9: 분석 중 ──────────────────────────────────────────────────
     elif step == 9:
         scores = compute_user_scores(st.session_state.quiz_answers)
         mbti = scores_to_mbti(scores)
         profiles_df = load_profiles()
+        if profiles_df.empty:
+            st.error("동네 프로필 데이터를 불러올 수 없습니다.")
+            if st.button("처음으로"):
+                reset_quiz_state(st.session_state)
+                st.experimental_rerun()
+            st.stop()
         matches = match_neighborhoods(scores, profiles_df)
         dna_text = generate_user_dna_text(scores, mbti)
 
@@ -654,7 +668,7 @@ if not st.session_state.quiz_completed:
 
         time.sleep(2)
         st.session_state.quiz_step = 10
-        st.rerun()
+        st.experimental_rerun()
 
     # ── Step 10: 결과 ────────────────────────────────────────────────────
     elif step == 10:
@@ -741,10 +755,11 @@ if not st.session_state.quiz_completed:
 
                 st.session_state.quiz_rec_texts = rec_texts
                 st.session_state.quiz_ai_done = True
-            st.rerun()
+            st.experimental_rerun()
 
-        # AI 분석 텍스트 표시
-        ai_dna = st.session_state.get("quiz_ai_dna") or st.session_state.quiz_dna_text
+        # AI 분석 텍스트 표시 (HTML escape로 XSS 방지)
+        _raw_dna = st.session_state.get("quiz_ai_dna") or ""
+        ai_dna = _html.escape(_raw_dna.strip()) if _raw_dna.strip() else st.session_state.quiz_dna_text
         st.markdown(f"""
         <div style="max-width:480px;margin:0 auto 24px;">
             <div class="info-card">
@@ -803,10 +818,11 @@ if not st.session_state.quiz_completed:
 
             rec_html = ""
             if rec:
+                rec_safe = _html.escape(rec)
                 rec_html = (
                     '<div style="margin-top:12px;padding:10px 14px;'
                     'background:rgba(37,99,235,0.04);border-radius:10px;'
-                    f'font-size:14px;line-height:1.6;">💡 {rec}</div>'
+                    f'font-size:14px;line-height:1.6;">💡 {rec_safe}</div>'
                 )
 
             st.markdown(f"""
@@ -835,11 +851,11 @@ if not st.session_state.quiz_completed:
         with c_go:
             if st.button("🏙️ 동네 둘러보기", use_container_width=True, type="primary"):
                 st.session_state.quiz_completed = True
-                st.rerun()
+                st.experimental_rerun()
         with c_retry:
             if st.button("🔄 다시 하기", use_container_width=True):
                 reset_quiz_state(st.session_state)
-                st.rerun()
+                st.experimental_rerun()
 
     st.stop()
 
@@ -849,17 +865,24 @@ if st.session_state.get("quiz_user_mbti"):
     _bc = MBTI_COLORS.get(_bm, "#555")
     _ba = MBTI_ANIMAL_NAMES.get(_bm, "")
     _binfo = ""
-    if st.session_state.get("quiz_matches"):
-        _t1 = st.session_state.quiz_matches[0][0]
-        _t1p = compute_match_pct(st.session_state.quiz_matches[0][1])
+    _matches = st.session_state.get("quiz_matches")
+    if _matches and len(_matches) > 0:
+        _t1 = _matches[0][0]
+        _t1p = compute_match_pct(_matches[0][1])
         _binfo = f" · 🏘️ TOP 1: {_t1['SGG']} {_t1['EMD']} ({_t1p}%)"
-    st.markdown(f"""
-    <div class="result-banner" style="background:linear-gradient(135deg, {_bc}15, {_bc}25);
-         border:1px solid {_bc}30;">
-        <span style="font-size:18px;">🧬</span>
-        <span>나의 동네 DNA: <b style="color:{_bc};">{_bm}</b> {_ba}{_binfo}</span>
-    </div>
-    """, unsafe_allow_html=True)
+    _bcol1, _bcol2 = st.columns([5, 1])
+    with _bcol1:
+        st.markdown(f"""
+        <div class="result-banner" style="background:linear-gradient(135deg, {_bc}15, {_bc}25);
+             border:1px solid {_bc}30;">
+            <span style="font-size:18px;">🧬</span>
+            <span>나의 동네 DNA: <b style="color:{_bc};">{_bm}</b> {_ba}{_binfo}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    with _bcol2:
+        if st.button("🔄 다시 테스트", key="banner_retry"):
+            reset_quiz_state(st.session_state)
+            st.experimental_rerun()
 
 # ── 탭 ───────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(["🏠 동네 카드", "💬 동네 찾기", "📊 시세 전망", "🔬 데이터 탐색"])
@@ -1367,7 +1390,7 @@ with tab2:
             col = col_a if i % 2 == 0 else col_b
             if col.button(sug, key=f"sug_{i}", use_container_width=True):
                 st.session_state["_pending"] = sug
-                st.rerun()
+                st.experimental_rerun()
 
     # ── 대화 히스토리 출력 ──
     for msg in st.session_state.messages:
@@ -1409,12 +1432,12 @@ with tab2:
                 prev_history = st.session_state.messages[:-1]
                 answer_text, _ = _search_and_respond(prompt, history=prev_history)
             st.session_state.messages.append({"role": "assistant", "content": answer_text})
-        st.rerun()
+        st.experimental_rerun()
 
     if st.session_state.messages:
         if st.button("대화 초기화", key="reset_chat"):
             st.session_state.messages = []
-            st.rerun()
+            st.experimental_rerun()
 
     # ── 탭 2 → 탭 3 연결 CTA ──
     st.markdown("""
@@ -1642,7 +1665,7 @@ with tab4:
             col = ex_row1[i] if i < 3 else ex_row2[i - 3]
             if col.button(ex, key=f"analyst_ex_{i}", use_container_width=True):
                 st.session_state["_analyst_pending"] = ex
-                st.rerun()
+                st.experimental_rerun()
 
     # 대화 히스토리 출력
     for msg in st.session_state.get("analyst_history", []):
@@ -1739,9 +1762,9 @@ with tab4:
                     "sql": None,
                     "data": None,
                 })
-        st.rerun()
+        st.experimental_rerun()
 
     if st.session_state.get("analyst_history"):
         if st.button("조회 초기화", key="reset_analyst"):
             st.session_state.analyst_history = []
-            st.rerun()
+            st.experimental_rerun()
