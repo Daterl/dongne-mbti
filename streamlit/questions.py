@@ -12,7 +12,7 @@
   JP: 양수 = P(변화/유동), 음수 = J(안정/정착)
 """
 
-from math import sqrt
+from math import sqrt, exp
 
 # ── 8개 질문 정의 ────────────────────────────────────────────────────────
 QUESTIONS = [
@@ -253,10 +253,14 @@ def generate_user_dna_text(scores: dict[str, float], mbti: str) -> str:
 
 
 def compute_match_pct(distance: float) -> int:
-    """유클리드 거리를 0~100% 매칭률로 변환."""
-    # 스케일링 후 최대 거리 ~8.0 (4축 × 최대 차이 ~4) 기준 정규화
-    pct = max(0, int(100 - distance * 12.5))
-    return min(100, pct)
+    """유클리드 거리를 0~100% 매칭률로 변환 (지수 감쇠).
+
+    실제 동네 간 거리 분포 (118개 동):
+      중앙값 1.23 / P95 3.47 / 최대 5.40
+    계수 0.35는 이 분포에 캘리브레이션:
+      dist 0.3→90%, 0.5→84%, 1.0→70%, 2.0→50%, 3.0→35%
+    """
+    return max(0, min(100, int(100 * exp(-distance * 0.35))))
 
 
 def reset_quiz_state(session_state) -> None:

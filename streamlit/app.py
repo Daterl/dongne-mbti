@@ -808,7 +808,7 @@ if not st.session_state.quiz_completed:
                 uv = scores[ax]
                 dv = float(row_dict.get(f"{ax}_SCORE", 0))
                 diff = abs(uv - dv)
-                ax_pct = max(0, int(100 - diff / 6 * 100))
+                ax_pct = max(0, int(100 - diff / 4 * 100))
                 if ax_pct >= 80:
                     bar_color = "linear-gradient(90deg, #2563EB, #60A5FA)"
                     val_color = "#2563EB"
