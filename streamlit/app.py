@@ -9,6 +9,11 @@ import plotly.graph_objects as go
 import altair as alt
 from snowflake.snowpark.context import get_active_session
 from animals import MBTI_ANIMALS, MBTI_ANIMAL_NAMES
+from questions import (
+    QUESTIONS, AXIS_LABELS, compute_user_scores, scores_to_mbti,
+    match_neighborhoods, compute_match_pct, reset_quiz_state, generate_user_dna_text,
+)
+import time
 
 # ── AI 모델 설정 ──────────────────────────────────────────────────────────────
 # AISQL 신함수 AI_COMPLETE + Meta Llama 3.3 70B (2026-04 기준 이 리전 최신 오픈 모델)
@@ -441,6 +446,74 @@ st.markdown("""
     opacity: 0.6;
     font-size: 13px;
 }
+
+/* ── 퀴즈 ── */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.7; }
+}
+.quiz-wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    animation: fadeSlideIn 0.35s ease;
+}
+.quiz-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.06);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+.quiz-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2563EB, #60A5FA);
+    transition: width 0.6s ease;
+}
+.quiz-emoji { font-size: 48px; text-align: center; margin-bottom: 8px; }
+.quiz-title { font-size: 14px; text-align: center; opacity: 0.5; font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
+.quiz-question { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 24px; line-height: 1.5; }
+.quiz-step-label { text-align: center; font-size: 13px; opacity: 0.4; margin-bottom: 16px; }
+.pulse-emoji { font-size: 64px; animation: pulse 1.5s ease-in-out infinite; text-align: center; margin: 40px 0 16px; }
+.result-dna-card {
+    border-radius: 24px; padding: 32px 24px; color: white; text-align: center;
+    margin-bottom: 20px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    position: relative; overflow: hidden;
+}
+.result-dna-card::before {
+    content: ''; position: absolute; top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.12) 0%, transparent 50%);
+    pointer-events: none;
+}
+.match-card {
+    border-radius: 16px; padding: 20px; margin-bottom: 12px;
+    border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    animation: fadeSlideIn 0.4s ease;
+}
+.match-card img { max-width: 56px; max-height: 56px; object-fit: contain; }
+.match-rank { font-size: 13px; font-weight: 700; opacity: 0.5; letter-spacing: 1px; margin-bottom: 8px; }
+.match-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.match-pct { font-size: 15px; font-weight: 600; color: #2563EB; margin-bottom: 8px; }
+.axis-compare { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; }
+.axis-compare-bar {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: rgba(0,0,0,0.06); position: relative;
+}
+.axis-compare-user, .axis-compare-dong {
+    position: absolute; top: -3px; width: 12px; height: 12px;
+    border-radius: 50%; transform: translateX(-50%);
+}
+.axis-compare-user { background: #2563EB; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.axis-compare-dong { background: #F87171; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.result-banner {
+    border-radius: 14px; padding: 10px 18px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px; font-size: 14px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -453,6 +526,340 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 성향 테스트 퀴즈 (Full-Page Gate)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+for _qk, _qv in [("quiz_step", 0), ("quiz_answers", []), ("quiz_completed", False)]:
+    if _qk not in st.session_state:
+        st.session_state[_qk] = _qv
+
+
+def _quiz_ai(prompt: str) -> str:
+    """AI_COMPLETE 2-tier fallback: llama3.3-70b → snowflake-arctic → empty."""
+    p = prompt.replace("'", "''")
+    try:
+        return session.sql(
+            f"SELECT AI_COMPLETE('{MODEL_PRIMARY}', '{p}') AS R"
+        ).collect()[0]["R"]
+    except Exception:
+        try:
+            return session.sql(
+                f"SELECT AI_COMPLETE('{MODEL_FALLBACK}', '{p}') AS R"
+            ).collect()[0]["R"]
+        except Exception:
+            return ""
+
+
+def _quiz_cortex_search(query: str) -> str:
+    """Cortex Search 동네 프로필 보강. 실패 시 빈 문자열."""
+    try:
+        import _snowflake
+        import json
+        resp = _snowflake.send_snow_api_request(
+            "POST",
+            "/api/v2/databases/DONGNE_MBTI/schemas/PUBLIC/cortex-search-services/DONGNE_SEARCH:query",
+            {}, {},
+            {"query": query, "columns": ["PROFILE_TEXT"], "limit": 3},
+            None, 30000,
+        )
+        if resp.get("status") == 200:
+            data = json.loads(resp.get("content", "{}"))
+            return "\n".join(r.get("PROFILE_TEXT", "") for r in data.get("results", []))
+    except Exception:
+        pass
+    return ""
+
+
+if not st.session_state.quiz_completed:
+    step = st.session_state.quiz_step
+
+    # ── Step 0: 인트로 ────────────────────────────────────────────────────
+    if step == 0:
+        st.markdown("""
+        <div class="quiz-wrap" style="text-align:center;padding:40px 0 20px;">
+            <div style="font-size:64px;margin-bottom:16px;">🧭</div>
+            <h1 style="font-size:28px;font-weight:800;margin:0 0 8px;">나의 동네 DNA 테스트</h1>
+            <p style="font-size:15px;opacity:0.6;margin:0 0 32px;line-height:1.6;">
+                8개의 질문으로 118개 동네 중<br>당신에게 딱 맞는 곳을 찾아드려요
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        prev_cols = st.columns(4)
+        for i, mtype in enumerate(["ENFP", "ISTJ", "INFJ", "ESTP"]):
+            with prev_cols[i]:
+                st.markdown(f"""
+                <div style="text-align:center;">
+                    <div style="max-width:80px;margin:0 auto;">{MBTI_ANIMALS.get(mtype, "")}</div>
+                    <div style="font-size:11px;opacity:0.5;margin-top:4px;">{MBTI_ANIMAL_NAMES.get(mtype, "")}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            if st.button("🧭 시작하기", use_container_width=True, type="primary"):
+                st.session_state.quiz_step = 1
+                st.rerun()
+        with c2:
+            if st.button("바로 둘러보기 →", use_container_width=True):
+                st.session_state.quiz_completed = True
+                st.rerun()
+
+    # ── Step 1-8: 질문 ────────────────────────────────────────────────────
+    elif 1 <= step <= 8:
+        q = QUESTIONS[step - 1]
+        pct = int(step / 8 * 100)
+
+        st.markdown(f"""
+        <div class="quiz-wrap">
+            <div class="quiz-progress"><div class="quiz-progress-fill" style="width:{pct}%;"></div></div>
+            <div class="quiz-step-label">질문 {step} / 8</div>
+            <div class="quiz-emoji">{q["emoji"]}</div>
+            <div class="quiz-title">{q["title"]}</div>
+            <div class="quiz-question">{q["question"]}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        for oi, ot in enumerate(q["options"]):
+            if st.button(ot, key=f"q{step}_o{oi}", use_container_width=True):
+                st.session_state.quiz_answers.append(oi)
+                st.session_state.quiz_step = step + 1
+                st.rerun()
+
+    # ── Step 9: 분석 중 ──────────────────────────────────────────────────
+    elif step == 9:
+        scores = compute_user_scores(st.session_state.quiz_answers)
+        mbti = scores_to_mbti(scores)
+        profiles_df = load_profiles()
+        matches = match_neighborhoods(scores, profiles_df)
+        dna_text = generate_user_dna_text(scores, mbti)
+
+        st.session_state.quiz_user_scores = scores
+        st.session_state.quiz_user_mbti = mbti
+        st.session_state.quiz_matches = matches
+        st.session_state.quiz_dna_text = dna_text
+
+        st.markdown("""
+        <div class="quiz-wrap" style="text-align:center;padding:60px 0;">
+            <div class="pulse-emoji">🔍</div>
+            <p style="font-size:18px;font-weight:600;margin:16px 0 8px;">
+                당신의 동네 DNA를 분석하고 있어요...
+            </p>
+            <p style="font-size:14px;opacity:0.5;">8개 답변 × 4축 성향을 118개 동네와 매칭 중</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        time.sleep(2)
+        st.session_state.quiz_step = 10
+        st.rerun()
+
+    # ── Step 10: 결과 ────────────────────────────────────────────────────
+    elif step == 10:
+        scores = st.session_state.quiz_user_scores
+        mbti = st.session_state.quiz_user_mbti
+        matches = st.session_state.quiz_matches
+        color = MBTI_COLORS.get(mbti, "#555")
+        animal_svg = MBTI_ANIMALS.get(mbti, "")
+        animal_name = MBTI_ANIMAL_NAMES.get(mbti, "")
+
+        # Phase A: 나의 동네 DNA 카드
+        ei = "E 외향적" if scores["EI"] >= 0 else "I 내향적"
+        sn = "S 실용적" if scores["SN"] >= 0 else "N 문화적"
+        tf = "T 이성적" if scores["TF"] >= 0 else "F 감성적"
+        jp = "P 변화적" if scores["JP"] >= 0 else "J 안정적"
+
+        st.markdown(f"""
+        <div style="max-width:480px;margin:0 auto;">
+            <div class="result-dna-card" style="background:linear-gradient(145deg, {color}, {color}bb, {color}dd);">
+                <div class="mbti-animal">{animal_svg}</div>
+                <p class="mbti-type">{mbti}</p>
+                <p class="mbti-animal-name">{animal_name}</p>
+                <p style="font-size:14px;opacity:0.7;margin-top:12px;">나의 동네 DNA</p>
+                <div style="margin-top:10px;">
+                    <span class="axis-chip">{ei}</span>
+                    <span class="axis-chip">{sn}</span>
+                    <span class="axis-chip">{tf}</span>
+                    <span class="axis-chip">{jp}</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # AI 분석 + 추천 이유 (1회만 실행, 이후 session_state 캐시)
+        if "quiz_ai_done" not in st.session_state:
+            with st.spinner("AI가 성향을 분석하고 추천 동네를 찾고 있어요..."):
+                # DNA 분석 프롬프트
+                axis_lines = []
+                for ax, name in [("EI", "외향-내향"), ("SN", "실용-문화"),
+                                 ("TF", "이성-감성"), ("JP", "변화-안정")]:
+                    v = scores[ax]
+                    desc = AXIS_LABELS[ax]["pos_desc"] if v >= 0 else AXIS_LABELS[ax]["neg_desc"]
+                    axis_lines.append(f"- {name}: {v:+.1f} ({desc})")
+
+                dna_prompt = (
+                    "당신은 서울 동네 라이프스타일 분석 전문가입니다. "
+                    "한국어 ~요체를 사용해주세요.\n\n"
+                    f"사용자의 동네 MBTI: {mbti}\n"
+                    + "\n".join(axis_lines)
+                    + "\n\n이 사람의 동네 선호 성향을 3-4문장으로 "
+                    "자연스럽고 따뜻하게 분석해주세요."
+                )
+                st.session_state.quiz_ai_dna = _quiz_ai(dna_prompt)
+
+                # TOP 3 추천 이유 (Cortex Search context 보강 + AI_COMPLETE)
+                rec_texts = []
+                for idx, (row_dict, dist) in enumerate(matches):
+                    sgg, emd = row_dict["SGG"], row_dict["EMD"]
+                    dong_mbti = row_dict["MBTI"]
+                    match_pct = compute_match_pct(dist)
+                    profile = str(row_dict.get("PROFILE_TEXT", ""))[:400]
+
+                    # 1위 매칭만 Cortex Search로 보강
+                    extra = ""
+                    if idx == 0:
+                        ctx = _quiz_cortex_search(
+                            f"{sgg} {emd} 동네 라이프스타일 특성"
+                        )
+                        if ctx:
+                            extra = f"\n추가 정보: {ctx[:300]}"
+
+                    rec_prompt = (
+                        "당신은 서울 동네 추천 전문가입니다. "
+                        "한국어 ~요체를 사용해주세요.\n\n"
+                        f"사용자 MBTI: {mbti}, "
+                        f"추천 동네: {sgg} {emd} "
+                        f"(MBTI: {dong_mbti}, 매칭률: {match_pct}%)\n"
+                        f"동네 프로필: {profile}{extra}\n\n"
+                        "이 동네가 사용자에게 잘 맞는 이유를 "
+                        "2-3문장으로 설명해주세요. "
+                        "동네의 구체적 특성을 언급하세요."
+                    )
+                    rec_texts.append(_quiz_ai(rec_prompt))
+
+                st.session_state.quiz_rec_texts = rec_texts
+                st.session_state.quiz_ai_done = True
+            st.rerun()
+
+        # AI 분석 텍스트 표시
+        ai_dna = st.session_state.get("quiz_ai_dna") or st.session_state.quiz_dna_text
+        st.markdown(f"""
+        <div style="max-width:480px;margin:0 auto 24px;">
+            <div class="info-card">
+                <b>🧬 AI 성향 분석</b><br><br>
+                {ai_dna}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Phase B: TOP 3 매칭
+        st.markdown("""
+        <div style="text-align:center;margin:32px 0 8px;">
+            <h3 style="margin:0;">🏘️ 당신에게 딱 맞는 동네 TOP 3</h3>
+            <p style="font-size:13px;opacity:0.5;margin-top:4px;">
+                <span style="display:inline-block;width:10px;height:10px;background:#2563EB;
+                      border-radius:50%;margin-right:4px;vertical-align:middle;"></span>나
+                <span style="display:inline-block;width:10px;height:10px;background:#F87171;
+                      border-radius:50%;margin:0 4px 0 12px;vertical-align:middle;"></span>동네
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        rec_texts = st.session_state.get("quiz_rec_texts", ["", "", ""])
+
+        # 3위 → 2위 → 1위 카운트다운 순서
+        for rank_idx in range(len(matches) - 1, -1, -1):
+            row_dict, dist = matches[rank_idx]
+            rank = rank_idx + 1
+            dong_mbti = row_dict["MBTI"]
+            dong_animal = MBTI_ANIMALS.get(dong_mbti, "")
+            dong_animal_name = MBTI_ANIMAL_NAMES.get(dong_mbti, "")
+            pct = compute_match_pct(dist)
+            rec = rec_texts[rank_idx] if rank_idx < len(rec_texts) else ""
+            medal = ["🥇", "🥈", "🥉"][rank_idx]
+
+            # 축별 비교 바 HTML
+            axis_html = ""
+            for ax in ["EI", "SN", "TF", "JP"]:
+                info = AXIS_LABELS[ax]
+                uv = scores[ax]
+                dv = float(row_dict.get(f"{ax}_SCORE", 0))
+                up = max(0, min(100, (uv + 3) / 6 * 100))
+                dp = max(0, min(100, (dv + 3) / 6 * 100))
+                axis_html += (
+                    '<div class="axis-compare">'
+                    f'<span style="width:24px;text-align:right;opacity:0.5;">'
+                    f'{info["neg"].split()[0]}</span>'
+                    f'<div class="axis-compare-bar">'
+                    f'<div class="axis-compare-user" style="left:{up:.0f}%;"></div>'
+                    f'<div class="axis-compare-dong" style="left:{dp:.0f}%;"></div>'
+                    f'</div>'
+                    f'<span style="width:24px;opacity:0.5;">'
+                    f'{info["pos"].split()[0]}</span>'
+                    '</div>'
+                )
+
+            rec_html = ""
+            if rec:
+                rec_html = (
+                    '<div style="margin-top:12px;padding:10px 14px;'
+                    'background:rgba(37,99,235,0.04);border-radius:10px;'
+                    f'font-size:14px;line-height:1.6;">💡 {rec}</div>'
+                )
+
+            st.markdown(f"""
+            <div class="match-card" style="max-width:640px;margin:0 auto 16px;">
+                <div class="match-rank">{medal} {rank}위 매칭</div>
+                <div style="display:flex;gap:16px;align-items:center;">
+                    <div style="width:64px;text-align:center;flex-shrink:0;">
+                        {dong_animal}
+                    </div>
+                    <div style="flex:1;">
+                        <div class="match-name">{row_dict["SGG"]} {row_dict["EMD"]}</div>
+                        <div style="font-size:13px;opacity:0.6;">
+                            {dong_mbti} · {dong_animal_name}
+                        </div>
+                        <div class="match-pct">매칭률 {pct}%</div>
+                    </div>
+                </div>
+                <div style="margin-top:12px;">{axis_html}</div>
+                {rec_html}
+            </div>
+            """, unsafe_allow_html=True)
+
+        # CTA 버튼
+        st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+        c_go, c_retry = st.columns([2, 1])
+        with c_go:
+            if st.button("🏙️ 동네 둘러보기", use_container_width=True, type="primary"):
+                st.session_state.quiz_completed = True
+                st.rerun()
+        with c_retry:
+            if st.button("🔄 다시 하기", use_container_width=True):
+                reset_quiz_state(st.session_state)
+                st.rerun()
+
+    st.stop()
+
+# ── 결과 배너 (퀴즈 완료 후, 탭 위에 표시) ──────────────────────────────────
+if st.session_state.get("quiz_user_mbti"):
+    _bm = st.session_state.quiz_user_mbti
+    _bc = MBTI_COLORS.get(_bm, "#555")
+    _ba = MBTI_ANIMAL_NAMES.get(_bm, "")
+    _binfo = ""
+    if st.session_state.get("quiz_matches"):
+        _t1 = st.session_state.quiz_matches[0][0]
+        _t1p = compute_match_pct(st.session_state.quiz_matches[0][1])
+        _binfo = f" · 🏘️ TOP 1: {_t1['SGG']} {_t1['EMD']} ({_t1p}%)"
+    st.markdown(f"""
+    <div class="result-banner" style="background:linear-gradient(135deg, {_bc}15, {_bc}25);
+         border:1px solid {_bc}30;">
+        <span style="font-size:18px;">🧬</span>
+        <span>나의 동네 DNA: <b style="color:{_bc};">{_bm}</b> {_ba}{_binfo}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ── 탭 ───────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(["🏠 동네 카드", "💬 동네 찾기", "📊 시세 전망", "🔬 데이터 탐색"])

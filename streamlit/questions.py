@@ -264,7 +264,7 @@ def reset_quiz_state(session_state) -> None:
     for key in [
         "quiz_step", "quiz_answers", "quiz_completed",
         "quiz_user_scores", "quiz_user_mbti", "quiz_matches",
-        "quiz_dna_text", "quiz_rec_texts",
+        "quiz_dna_text", "quiz_rec_texts", "quiz_ai_dna", "quiz_ai_done",
     ]:
         if key in session_state:
             del session_state[key]
