@@ -1859,7 +1859,7 @@ with tab3:
         elif cached_ai:
             # Tab 2/4와 동일한 chat-msg-ai CSS 클래스 사용
             st.markdown(
-                f'<div class="chat-msg chat-msg-ai">📊 {cached_ai}</div>',
+                f'<div class="chat-msg chat-msg-ai" style="white-space:pre-wrap;">📊 {cached_ai}</div>',
                 unsafe_allow_html=True,
             )
         else:
@@ -1971,7 +1971,7 @@ with tab3:
                 st.error(f"맞춤 분석 생성 중 오류: {cached_fit[7:]}")
             elif cached_fit:
                 st.markdown(
-                    f'<div class="chat-msg chat-msg-ai">🧬 {cached_fit}</div>',
+                    f'<div class="chat-msg chat-msg-ai" style="white-space:pre-wrap;">🧬 {cached_fit}</div>',
                     unsafe_allow_html=True,
                 )
             else:
