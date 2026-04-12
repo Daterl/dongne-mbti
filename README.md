@@ -105,7 +105,7 @@ Cortex Search + Cortex Analyst가 조건에 맞는 동네를 추천해줍니다.
 5년치 실거래가 시계열 데이터를 기반으로 향후 3개월 시세를 예측합니다.  
 "지금 이사하면 좋을까?"에 대한 AI 판단을 계절성·인구이동·시세 추이로 제공합니다.
 
-![Tab 3 — 시세 전망 & ML 예측](assets/screenshots/tab3-price-forecast.jpg)
+![Tab 3 — 시세 전망 & ML 예측](assets/screenshots/tab3-price-forecast-v2.png)
 
 ### Tab 4 — 데이터 탐색 (Cortex Analyst)
 
@@ -236,7 +236,7 @@ Snowflake Marketplace에서 SPH + RICHGO가 이 3개 구를 동 단위로 완전
 | ![랜딩 퀴즈](assets/screenshots/landing-quiz.png) | 8가지 질문으로 나의 동네 MBTI 파악 |
 | ![Tab 1](assets/screenshots/tab1-dong-card.jpg) | MBTI 카드 + 레이더차트 + 궁합 |
 | ![Tab 2](assets/screenshots/tab2-dong-search.jpg) | 자연어 멀티턴 동네 검색 |
-| ![Tab 3](assets/screenshots/tab3-price-forecast.jpg) | 실거래가 + ML 예측 + AI 전망 |
+| ![Tab 3](assets/screenshots/tab3-price-forecast-v2.png) | 실거래가 + ML 예측 + AI 전망 |
 | ![Tab 4](assets/screenshots/tab4-data-explorer.jpg) | NL2SQL 데이터 탐색 |
 
 ---
