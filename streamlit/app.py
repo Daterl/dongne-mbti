@@ -637,8 +637,20 @@ if not st.session_state.quiz_completed:
                 st.session_state.quiz_step = step - 1
                 st.experimental_rerun()
 
-    # ── Step 9: 분석 중 ──────────────────────────────────────────────────
+    # ── Step 9: 분석 중 (스코어링 + AI 호출을 애니메이션 중 수행) ──────────
     elif step == 9:
+        # 애니메이션 먼저 렌더 (AI 호출 중 사용자에게 보임)
+        st.markdown("""
+        <div class="quiz-wrap" style="text-align:center;padding:60px 0;">
+            <div class="pulse-emoji">🔍</div>
+            <p style="font-size:18px;font-weight:600;margin:16px 0 8px;">
+                당신의 동네 DNA를 분석하고 있어요...
+            </p>
+            <p style="font-size:14px;opacity:0.55;">8개 답변 × 4축 성향을 118개 동네와 매칭 중</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 스코어링
         scores = compute_user_scores(st.session_state.quiz_answers)
         mbti = scores_to_mbti(scores)
         profiles_df = load_profiles()
@@ -656,21 +668,58 @@ if not st.session_state.quiz_completed:
         st.session_state.quiz_matches = matches
         st.session_state.quiz_dna_text = dna_text
 
-        st.markdown("""
-        <div class="quiz-wrap" style="text-align:center;padding:60px 0;">
-            <div class="pulse-emoji">🔍</div>
-            <p style="font-size:18px;font-weight:600;margin:16px 0 8px;">
-                당신의 동네 DNA를 분석하고 있어요...
-            </p>
-            <p style="font-size:14px;opacity:0.5;">8개 답변 × 4축 성향을 118개 동네와 매칭 중</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # AI 호출 (애니메이션이 보이는 동안 실행)
+        axis_lines = []
+        for ax, name in [("EI", "외향-내향"), ("SN", "실용-문화"),
+                         ("TF", "이성-감성"), ("JP", "변화-안정")]:
+            v = scores[ax]
+            desc = AXIS_LABELS[ax]["pos_desc"] if v >= 0 else AXIS_LABELS[ax]["neg_desc"]
+            axis_lines.append(f"- {name}: {v:+.1f} ({desc})")
 
-        time.sleep(2)
+        dna_prompt = (
+            "당신은 서울 동네 라이프스타일 분석 전문가입니다. "
+            "한국어 ~요체를 사용해주세요.\n\n"
+            f"사용자의 동네 MBTI: {mbti}\n"
+            + "\n".join(axis_lines)
+            + "\n\n이 사람의 동네 선호 성향을 3-4문장으로 "
+            "자연스럽고 따뜻하게 분석해주세요."
+        )
+        st.session_state.quiz_ai_dna = _quiz_ai(dna_prompt)
+
+        rec_texts = []
+        for idx, (row_dict, dist) in enumerate(matches):
+            sgg, emd = row_dict["SGG"], row_dict["EMD"]
+            dong_mbti = row_dict["MBTI"]
+            match_pct_val = compute_match_pct(dist)
+            profile = str(row_dict.get("PROFILE_TEXT", ""))[:400]
+
+            extra = ""
+            if idx == 0:
+                ctx = _quiz_cortex_search(
+                    f"{sgg} {emd} 동네 라이프스타일 특성"
+                )
+                if ctx:
+                    extra = f"\n추가 정보: {ctx[:300]}"
+
+            rec_prompt = (
+                "당신은 서울 동네 추천 전문가입니다. "
+                "한국어 ~요체를 사용해주세요.\n\n"
+                f"사용자 MBTI: {mbti}, "
+                f"추천 동네: {sgg} {emd} "
+                f"(MBTI: {dong_mbti}, 매칭률: {match_pct_val}%)\n"
+                f"동네 프로필: {profile}{extra}\n\n"
+                "이 동네가 사용자에게 잘 맞는 이유를 "
+                "2-3문장으로 설명해주세요. "
+                "동네의 구체적 특성을 언급하세요."
+            )
+            rec_texts.append(_quiz_ai(rec_prompt))
+
+        st.session_state.quiz_rec_texts = rec_texts
+        st.session_state.quiz_ai_done = True
         st.session_state.quiz_step = 10
         st.experimental_rerun()
 
-    # ── Step 10: 결과 ────────────────────────────────────────────────────
+    # ── Step 10: 결과 (모든 데이터가 session_state에 준비됨) ──────────────
     elif step == 10:
         scores = st.session_state.quiz_user_scores
         mbti = st.session_state.quiz_user_mbti
@@ -701,61 +750,6 @@ if not st.session_state.quiz_completed:
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-        # AI 분석 + 추천 이유 (1회만 실행, 이후 session_state 캐시)
-        if "quiz_ai_done" not in st.session_state:
-            with st.spinner("AI가 성향을 분석하고 추천 동네를 찾고 있어요..."):
-                # DNA 분석 프롬프트
-                axis_lines = []
-                for ax, name in [("EI", "외향-내향"), ("SN", "실용-문화"),
-                                 ("TF", "이성-감성"), ("JP", "변화-안정")]:
-                    v = scores[ax]
-                    desc = AXIS_LABELS[ax]["pos_desc"] if v >= 0 else AXIS_LABELS[ax]["neg_desc"]
-                    axis_lines.append(f"- {name}: {v:+.1f} ({desc})")
-
-                dna_prompt = (
-                    "당신은 서울 동네 라이프스타일 분석 전문가입니다. "
-                    "한국어 ~요체를 사용해주세요.\n\n"
-                    f"사용자의 동네 MBTI: {mbti}\n"
-                    + "\n".join(axis_lines)
-                    + "\n\n이 사람의 동네 선호 성향을 3-4문장으로 "
-                    "자연스럽고 따뜻하게 분석해주세요."
-                )
-                st.session_state.quiz_ai_dna = _quiz_ai(dna_prompt)
-
-                # TOP 3 추천 이유 (Cortex Search context 보강 + AI_COMPLETE)
-                rec_texts = []
-                for idx, (row_dict, dist) in enumerate(matches):
-                    sgg, emd = row_dict["SGG"], row_dict["EMD"]
-                    dong_mbti = row_dict["MBTI"]
-                    match_pct = compute_match_pct(dist)
-                    profile = str(row_dict.get("PROFILE_TEXT", ""))[:400]
-
-                    # 1위 매칭만 Cortex Search로 보강
-                    extra = ""
-                    if idx == 0:
-                        ctx = _quiz_cortex_search(
-                            f"{sgg} {emd} 동네 라이프스타일 특성"
-                        )
-                        if ctx:
-                            extra = f"\n추가 정보: {ctx[:300]}"
-
-                    rec_prompt = (
-                        "당신은 서울 동네 추천 전문가입니다. "
-                        "한국어 ~요체를 사용해주세요.\n\n"
-                        f"사용자 MBTI: {mbti}, "
-                        f"추천 동네: {sgg} {emd} "
-                        f"(MBTI: {dong_mbti}, 매칭률: {match_pct}%)\n"
-                        f"동네 프로필: {profile}{extra}\n\n"
-                        "이 동네가 사용자에게 잘 맞는 이유를 "
-                        "2-3문장으로 설명해주세요. "
-                        "동네의 구체적 특성을 언급하세요."
-                    )
-                    rec_texts.append(_quiz_ai(rec_prompt))
-
-                st.session_state.quiz_rec_texts = rec_texts
-                st.session_state.quiz_ai_done = True
-            st.experimental_rerun()
 
         # AI 분석 텍스트 표시 (HTML escape로 XSS 방지)
         _raw_dna = st.session_state.get("quiz_ai_dna") or ""
