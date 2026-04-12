@@ -1816,21 +1816,33 @@ with tab3:
                     # 지역 특성
                     domain_ctx = _DOMAIN_CONTEXT.get(t3_gu, f"{t3_gu} 지역입니다.")
 
+                    # 6개월 변화율 계산
+                    p_first, p_last = recent_prices[0], recent_prices[-1]
+                    p_6m_pct = (p_last - p_first) / p_first * 100 if p_first > 0 else 0
+
                     prompt = (
-                        f"반드시 한국어로 3-5문장으로 답변하세요. 영어 사용 금지.\n"
-                        f"당신은 부동산 데이터 분석 전문가입니다. "
-                        f"아래 데이터를 종합하여 이사/매수 타이밍 조언을 해주세요.\n\n"
+                        f"반드시 한국어로 답변하세요. 영어 사용 금지.\n"
+                        f"당신은 서울 부동산 시장 전문 분석가입니다. "
+                        f"아래 데이터를 기반으로 3단 구조의 전문 분석 리포트를 작성하세요.\n\n"
                         f"[시세 데이터]\n"
-                        f"- {t3_gu} {t3_dong} 최근 6개월 평당가: "
-                        f"{[round(p) for p in recent_prices]}만원"
+                        f"- {t3_gu} {t3_dong} 최근 6개월 평당가 추이: "
+                        f"{[round(p) for p in recent_prices]}만원\n"
+                        f"- 6개월 변화율: {p_6m_pct:+.1f}%"
                         f"{ml_info}"
                         f"{pop_info}\n\n"
                         f"[지역 특성]\n- {domain_ctx}\n\n"
-                        f"규칙:\n"
-                        f"1. 시세 트렌드 방향과 강도를 구체 숫자로 서술\n"
-                        f"2. 인구 흐름이 시세에 미치는 영향을 한 문장으로 연결 (데이터 있을 때만)\n"
-                        f"3. 마지막 문장에 매수/매도/관망 중 하나의 판단과 이유 제시\n"
-                        f"4. 일반론 금지. 반드시 숫자와 데이터 근거 포함"
+                        f"[출력 형식 — 반드시 아래 3단 구조로 작성]\n\n"
+                        f"📈 시세 트렌드\n"
+                        f"최근 6개월 평당가 흐름과 ML 예측을 2-3문장으로 분석. "
+                        f"반드시 구체 숫자(평당가, 변화율, 예측가) 인용. "
+                        f"상승/하락/보합 중 어느 국면인지 판단.\n\n"
+                        f"📊 수요 신호\n"
+                        f"인구 순이동(있을 때만)과 지역 특성을 근거로 실수요 강도 판단. "
+                        f"2문장 이내. 숫자 근거 필수.\n\n"
+                        f"💡 종합 판단\n"
+                        f"위 분석을 종합하여 매수/매도/관망 중 하나를 명확히 제시. "
+                        f"'이래서 지금 사라' 또는 '이래서 기다려라'를 납득할 수 있는 1-2문장. "
+                        f"일반론 금지. 반드시 위 데이터의 구체 숫자를 근거로 제시."
                     )
                     # $$ delimiter로 SQL 인젝션 안전하게 처리
                     safe_prompt = prompt.replace("$$", "")
@@ -1889,11 +1901,14 @@ with tab3:
             tf_text = _AXIS_INTERPRET["TF"][user_tf > 0]
             jp_text = _AXIS_INTERPRET["JP"][user_jp > 0]
 
-            # MBTI 뱃지 표시
+            # MBTI 뱃지 표시 (수치 대신 투자 스타일 표현)
+            ei_text = _AXIS_INTERPRET["EI"][user_scores.get("EI", 0) > 0]
+            sn_text = _AXIS_INTERPRET["SN"][user_scores.get("SN", 0) > 0]
+            style_tags = f"{ei_text} · {tf_text}"  # 핵심 2개 축만 표시
             st.markdown(
                 f'<div class="info-card">'
-                f'👤 나의 성격: <b>{user_mbti}</b> '
-                f'(TF {user_tf:+.1f} · {tf_text} / JP {user_jp:+.1f} · {jp_text})'
+                f'👤 나의 투자 스타일: <b>{user_mbti}</b> '
+                f'({style_tags})'
                 f'&nbsp;&nbsp;↔&nbsp;&nbsp;'
                 f'🏘️ 동네 성격: <b>{dong_mbti}</b> ({dong_type})'
                 f'</div>',
@@ -1926,21 +1941,22 @@ with tab3:
 
                         fit_prompt = (
                             f"반드시 한국어로 2-3문장으로 답변하세요. 영어 사용 금지.\n\n"
-                            f"당신은 부동산 성격 매칭 전문가입니다. "
-                            f"사용자의 성격과 동네 데이터를 결합하여 개인화된 이사 조언을 해주세요.\n\n"
-                            f"[사용자 성격]\n"
-                            f"- 투자 성향(TF축): {user_tf:+.1f} ({tf_text})\n"
-                            f"- 안정 성향(JP축): {user_jp:+.1f} ({jp_text})\n\n"
-                            f"[동네 데이터]\n"
-                            f"- {t3_gu} {t3_dong} MBTI: {dong_mbti} ({dong_type})"
+                            f"당신은 친구처럼 편하게 조언해주는 부동산 상담사입니다. "
+                            f"사용자의 투자 스타일에 맞춰 개인화된 조언을 해주세요.\n\n"
+                            f"[사용자 투자 스타일]\n"
+                            f"- {tf_text} (투자 수익보다 {'생활 만족도' if user_tf <= 0 else '자산 가치 상승'}을 더 중시)\n"
+                            f"- {jp_text} ({'새로운 동네 도전에 열려있음' if user_jp > 0 else '검증된 안정적 동네를 선호'})\n\n"
+                            f"[이 동네 정보]\n"
+                            f"- {t3_gu} {t3_dong}: {dong_type}"
                             f"{price_info}"
                             f"{pop_info}"
                             f"{sentiment_info}\n\n"
                             f"[지역 특성]\n- {domain_ctx}\n\n"
                             f"규칙:\n"
-                            f"1. 반드시 TF축({user_tf:+.1f})과 JP축({user_jp:+.1f}) 수치를 문장에 인용\n"
-                            f"2. 이 성격의 사용자에게만 해당하는 맞춤 조언 (다른 성격이면 다른 조언)\n"
-                            f"3. 마지막 문장에 매수/관망/매도 판단 + 성격 기반 이유"
+                            f"1. '당신은 ~한 스타일이니까' 라는 표현으로 시작. 친구가 말하듯 편하게\n"
+                            f"2. 이 스타일의 사용자에게만 해당하는 맞춤 조언 (다른 스타일이면 다른 조언이 나와야 함)\n"
+                            f"3. 마지막에 매수/관망/매도 판단 + '당신 스타일에는' 이유 제시\n"
+                            f"4. 숫자 수치 나열 금지. 자연스러운 대화체로"
                         )
                         safe_prompt = fit_prompt.replace("$$", "")
                         ai_fit = session.sql(
